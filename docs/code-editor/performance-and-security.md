@@ -6,7 +6,7 @@ The feature succeeds only if Writer stays lightweight. The common path is still 
 
 Source-code support must not add heavy work to startup:
 
-- No Monaco or source-language bundle in the initial markdown-only chunk.
+- No source-language bundle in the initial markdown-only chunk.
 - No file-content reads during workspace indexing.
 - No synchronous recursive scans on the frontend.
 - No new startup IPC waterfall.
@@ -65,7 +65,7 @@ Keep the existing ignore behavior. Add more safety skips if needed for common de
 
 ## Editor Lazy Loading
 
-If CodeMirror source mode is chosen, lazy-load language packages and the source editor pane. If Monaco is chosen, lazy-load all Monaco code and workers.
+Lazy-load the CodeMirror source editor pane and source-language packages.
 
 Acceptance:
 
@@ -73,9 +73,9 @@ Acceptance:
 - First source-file open loads exactly the needed editor surface and language support.
 - A second source-file open reuses the loaded editor code.
 
-## Monaco Requirements If Chosen
+## Monaco Escape Hatch
 
-Monaco is allowed only after the spike proves it is worth the cost.
+Monaco is out of scope for the first source-code implementation. It is allowed only in a later follow-up if the CodeMirror source editor fails a concrete requirement and the added weight is explicitly accepted.
 
 Requirements:
 
@@ -87,7 +87,7 @@ Requirements:
 - Validate production Tauri CSP and worker behavior early.
 - Keep Monaco out of the initial bundle and inspect the built chunks in CI.
 
-If these cannot be met cleanly, use CodeMirror.
+If these cannot be met cleanly, stay on CodeMirror.
 
 ## CSP
 
@@ -131,5 +131,5 @@ Keep logs quiet in production unless they represent user-visible errors.
 - Markdown-only startup remains within the existing cold-start budget.
 - Source editor code is lazy-loaded.
 - Large/binary files are rejected or opened read-only before full text decode.
-- Monaco, if used, works in a production Tauri build under CSP with no CDN/network dependency.
+- CodeMirror source mode works in a production Tauri build. Any later Monaco follow-up must prove CSP compatibility with no CDN/network dependency.
 - No feature introduced by source-code mode executes user code.

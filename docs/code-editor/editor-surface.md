@@ -60,7 +60,7 @@ Markdown-only state such as `frontmatter`, `displayDate`, and document stats sho
 
 ## Editor Library Decision
 
-Start with a one-day spike using existing CodeMirror 6 dependencies.
+Use CodeMirror 6 for the initial source editor.
 
 Reasoning:
 
@@ -69,7 +69,7 @@ Reasoning:
 - CodeMirror has language packages and extension points that match the app's existing editor lifecycle.
 - Monaco has higher bundle and worker/CSP risk, especially inside Tauri.
 
-The spike should compare CodeMirror source mode against Monaco for:
+The validation spike should prove CodeMirror source mode covers:
 
 - TypeScript/JavaScript, Rust, Python, JSON, YAML, TOML, HTML, CSS/SCSS, shell, Dockerfile, Makefile.
 - Syntax highlighting quality.
@@ -78,7 +78,7 @@ The spike should compare CodeMirror source mode against Monaco for:
 - Tauri production build behavior.
 - Cold-start impact.
 
-Choose Monaco only if CodeMirror cannot meet the target reading/editing requirements. If Monaco is chosen, it must be loaded locally, lazily, and without CDN fallback.
+Do not add Monaco in the first implementation. Revisit Monaco only if the CodeMirror implementation fails a concrete reading/editing requirement that cannot be solved with CodeMirror extensions. If Monaco is ever chosen later, it must be loaded locally, lazily, and without CDN fallback.
 
 ## Source Pane Chrome
 
@@ -130,5 +130,5 @@ Do not make force-open the only way to support extensionless files. Common exten
 - Markdown tabs render the existing markdown pane unchanged.
 - Source-text tabs render the source pane and never mount markdown frontmatter/section/stat UI.
 - Tab restore, back/forward, close, rename/move/delete path rewrites, and reveal-in-sidebar continue through the existing page-kind model.
-- Editor library is chosen by documented spike results, not assumed.
+- CodeMirror is used for the first source editor implementation.
 - Source editor code is lazy-loaded and absent from markdown-only startup.

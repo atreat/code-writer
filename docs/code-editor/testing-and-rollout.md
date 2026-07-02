@@ -11,11 +11,11 @@ Existing tools:
 
 ## Phase 0: Spike
 
-Goal: choose the source editor library with evidence.
+Goal: validate CodeMirror source mode with evidence.
 
 Tests/evidence:
 
-- Development and production Tauri build can load one source file.
+- Development and production Tauri build can load one source file in CodeMirror source mode.
 - Markdown-only session does not load source editor chunk.
 - Supported language samples render with usable highlighting.
 - Keyboard shortcuts do not collide with Writer globals.
@@ -23,8 +23,8 @@ Tests/evidence:
 
 Exit criteria:
 
-- CodeMirror is accepted, or Monaco has a documented reason to justify its cost.
-- Worker/CSP behavior is proven if Monaco is selected.
+- CodeMirror covers the first supported language set well enough for reading and small edits.
+- No Monaco dependency is added in the first implementation.
 
 ## Phase 1: File Model
 
@@ -125,7 +125,7 @@ Use these review personas from `docs/workflows/agent-review.md`:
 - Rust/Tauri Expert for indexing, read/write, watcher, and metadata behavior.
 - React/Frontend Expert for pane routing and lazy loading.
 - Zustand/State Expert for typed open-file state and conflict flags.
-- Editor Expert for CodeMirror/Monaco lifecycle and shortcut interactions.
+- Editor Expert for CodeMirror source-editor lifecycle and shortcut interactions.
 - QA Engineer for coverage and e2e scope.
 - UX Expert for unsupported/too-large/conflict/read-only states.
 

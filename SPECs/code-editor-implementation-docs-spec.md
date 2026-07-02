@@ -23,7 +23,7 @@ Create a clear implementation guide for adding lightweight source-code viewing a
 ## Non-Goals
 
 - Implement source-code editing.
-- Add Monaco or any editor dependency.
+- Add Monaco or any editor dependency. The implementation docs should point to CodeMirror first because Writer already ships it.
 - Change workspace behavior.
 - Add a new test harness.
 

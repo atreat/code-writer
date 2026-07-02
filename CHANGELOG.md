@@ -38,7 +38,7 @@
 
 ## 2026-07-02
 
-- Document the planned lightweight source-code mode under `docs/code-editor/`. The guide scopes the work around a kind-based workspace file model, a parallel source editor surface that leaves markdown editing unchanged, raw-text save/conflict safety, large-file and binary handling, CSP/worker constraints, and reuse of the existing Vite+, Rust, and WebdriverIO/Tauri validation harnesses.
+- Document the planned lightweight source-code mode under `docs/code-editor/`. The guide scopes the work around a kind-based workspace file model, a parallel CodeMirror source editor surface that leaves markdown editing unchanged, raw-text save/conflict safety, large-file and binary handling, CSP/worker constraints, and reuse of the existing Vite+, Rust, and WebdriverIO/Tauri validation harnesses.
 
 ## 2026-06-22
 
