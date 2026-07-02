@@ -3,11 +3,31 @@ use crate::ignore::WorkspaceIgnore;
 use crate::state::{AppState, WorkspaceState};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WorkspaceEntryKind {
+    Directory,
+    Markdown,
+    SourceText,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LineEnding {
+    Lf,
+    Crlf,
+    Mixed,
+    None,
+}
+
+const MAX_EDITABLE_FILE_BYTES: u64 = 50 * 1024 * 1024;
+const BINARY_SAMPLE_BYTES: usize = 8192;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DirEntry {
@@ -15,10 +35,13 @@ pub struct DirEntry {
     pub path: String,
     pub is_dir: bool,
     pub is_markdown: bool,
+    pub kind: WorkspaceEntryKind,
     pub modified_at: u64,
     /// Document title extracted from frontmatter `title:` or leading `# ` heading.
     /// `None` for directories or files without a recognizable title.
     pub title: Option<String>,
+    pub language: Option<String>,
+    pub size_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -26,6 +49,10 @@ pub struct FileContent {
     pub path: String,
     pub content: String,
     pub modified_at: u64,
+    pub kind: WorkspaceEntryKind,
+    pub language: Option<String>,
+    pub size_bytes: u64,
+    pub line_ending: LineEnding,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -117,10 +144,10 @@ pub(crate) fn modified_time(path: &std::path::Path) -> u64 {
         .unwrap_or(0)
 }
 
-/// Recursively checks if a directory contains at least one visible .md file.
+/// Recursively checks if a directory contains at least one visible file.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum DirectoryContent {
-    Markdown,
+    Visible,
     Empty,
     Other,
 }
@@ -132,7 +159,11 @@ fn visible_fs_entry(
     let entry = entry?;
     let file_type = entry.file_type()?;
     let path = entry.path();
-    if entry.file_name().to_string_lossy().starts_with('.')
+    let name = entry.file_name();
+    if (file_type.is_dir() && name.to_string_lossy().starts_with('.'))
+        || (file_type.is_file()
+            && name.to_string_lossy().starts_with('.')
+            && !is_visible_file(&path))
         || ignore.is_some_and(|matcher| matcher.is_ignored(&path, file_type.is_dir()))
     {
         return Ok(None);
@@ -143,7 +174,7 @@ fn visible_fs_entry(
 /// Classify a directory tree through the same visible/ignored lens as the
 /// sidebar. Folder-only trees count as empty so a newly created folder stays
 /// available for authoring; a visible non-Markdown file makes the tree
-/// `Other`. A Markdown file wins immediately.
+/// `Other`. A supported text file wins immediately.
 fn classify_directory_content(
     path: &Path,
     ignore: Option<&WorkspaceIgnore>,
@@ -154,13 +185,13 @@ fn classify_directory_content(
             continue;
         };
         if file_type.is_file() {
-            if entry_path.extension().and_then(|e| e.to_str()) == Some("md") {
-                return Ok(DirectoryContent::Markdown);
+            if is_visible_file(&entry_path) {
+                return Ok(DirectoryContent::Visible);
             }
             content = DirectoryContent::Other;
         } else if file_type.is_dir() {
             match classify_directory_content(&entry_path, ignore)? {
-                DirectoryContent::Markdown => return Ok(DirectoryContent::Markdown),
+                DirectoryContent::Visible => return Ok(DirectoryContent::Visible),
                 DirectoryContent::Other => content = DirectoryContent::Other,
                 DirectoryContent::Empty => {}
             }
@@ -198,7 +229,7 @@ fn directory_is_sidebar_visible(
 ) -> Result<bool, AppError> {
     if let Some(state) = state {
         let index_ready = state.index_ready.load(Ordering::Relaxed);
-        if index_ready && state.dirs_with_markdown.read().contains(path) {
+        if index_ready && state.dirs_with_visible_entries.read().contains(path) {
             return Ok(true);
         }
         // Snapshot the `Arc<WorkspaceIgnore>` under a brief read lock and
@@ -212,13 +243,117 @@ fn directory_is_sidebar_visible(
         }
         return Ok(matches!(
             classify_directory_content(path, ignore_arc.as_deref())?,
-            DirectoryContent::Markdown | DirectoryContent::Empty
+            DirectoryContent::Visible | DirectoryContent::Empty
         ));
     }
     Ok(matches!(
         classify_directory_content(path, None)?,
-        DirectoryContent::Markdown | DirectoryContent::Empty
+        DirectoryContent::Visible | DirectoryContent::Empty
     ))
+}
+
+pub(crate) fn classify_file(path: &Path) -> Option<(WorkspaceEntryKind, Option<&'static str>)> {
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default();
+    let lower_name = name.to_ascii_lowercase();
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase());
+
+    if matches!(ext.as_deref(), Some("md" | "mdx" | "markdown")) {
+        return Some((WorkspaceEntryKind::Markdown, Some("markdown")));
+    }
+
+    let language = match lower_name.as_str() {
+        ".gitignore" | ".gitattributes" => Some("gitignore"),
+        ".env" | ".env.example" => Some("dotenv"),
+        "dockerfile" => Some("dockerfile"),
+        "makefile" => Some("makefile"),
+        "justfile" => Some("just"),
+        "procfile" => Some("procfile"),
+        _ => match ext.as_deref()? {
+            "ts" | "tsx" => Some("typescript"),
+            "js" | "jsx" => Some("javascript"),
+            "rs" => Some("rust"),
+            "py" => Some("python"),
+            "sh" | "bash" | "zsh" => Some("shell"),
+            "html" => Some("html"),
+            "css" => Some("css"),
+            "scss" => Some("scss"),
+            "json" | "jsonc" => Some("json"),
+            "yaml" | "yml" => Some("yaml"),
+            "toml" => Some("toml"),
+            "xml" => Some("xml"),
+            "env" => Some("dotenv"),
+            "swift" => Some("swift"),
+            "rb" => Some("ruby"),
+            _ => None,
+        },
+    };
+
+    language.map(|language| (WorkspaceEntryKind::SourceText, Some(language)))
+}
+
+pub(crate) fn is_visible_file(path: &Path) -> bool {
+    classify_file(path).is_some()
+}
+
+fn reject_binary_sample(path: &Path) -> Result<(), AppError> {
+    let mut file = fs::File::open(path)?;
+    let mut sample = vec![0; BINARY_SAMPLE_BYTES];
+    let bytes_read = file.read(&mut sample)?;
+    sample.truncate(bytes_read);
+
+    if sample.contains(&0) {
+        return Err(AppError::Binary(path.to_string_lossy().to_string()));
+    }
+
+    if let Err(err) = std::str::from_utf8(&sample) {
+        if err.error_len().is_some() {
+            return Err(AppError::Unsupported(format!(
+                "Only UTF-8 text files can be opened: {}",
+                path.to_string_lossy()
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+fn detect_line_ending(content: &str) -> LineEnding {
+    let bytes = content.as_bytes();
+    let mut crlf = 0;
+    let mut lf = 0;
+    let mut cr = 0;
+    let mut i = 0;
+
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\r' if bytes.get(i + 1) == Some(&b'\n') => {
+                crlf += 1;
+                i += 2;
+            }
+            b'\r' => {
+                cr += 1;
+                i += 1;
+            }
+            b'\n' => {
+                lf += 1;
+                i += 1;
+            }
+            _ => i += 1,
+        }
+    }
+
+    match (crlf, lf, cr) {
+        (0, 0, 0) => LineEnding::None,
+        (0, _, 0) => LineEnding::Lf,
+        (_, 0, 0) => LineEnding::Crlf,
+        _ => LineEnding::Mixed,
+    }
 }
 
 pub fn read_directory_impl(
@@ -248,10 +383,7 @@ pub fn read_directory_impl(
         let entry_path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
 
-        // Skip hidden files/dirs (the workspace `.gitignore` stays available
-        // because `read_directory` only surfaces markdown files and
-        // directories, never dotfiles — see the sidebar spec).
-        if name.starts_with('.') {
+        if name.starts_with('.') && classify_file(&entry_path).is_none() {
             continue;
         }
 
@@ -268,21 +400,31 @@ pub fn read_directory_impl(
                     path: entry_path.to_string_lossy().to_string(),
                     is_dir: true,
                     is_markdown: false,
+                    kind: WorkspaceEntryKind::Directory,
                     modified_at: modified_time(&entry_path),
                     title: None,
+                    language: None,
+                    size_bytes: None,
                 });
             }
         } else if file_type.is_file() {
-            let is_markdown = entry_path.extension().and_then(|e| e.to_str()) == Some("md");
-            if is_markdown {
-                let title = extract_title(&entry_path);
+            if let Some((kind, language)) = classify_file(&entry_path) {
+                let title = if kind == WorkspaceEntryKind::Markdown {
+                    extract_title(&entry_path)
+                } else {
+                    None
+                };
+                let is_markdown = kind == WorkspaceEntryKind::Markdown;
                 files.push(DirEntry {
                     name,
                     path: entry_path.to_string_lossy().to_string(),
                     is_dir: false,
-                    is_markdown: true,
+                    is_markdown,
+                    kind,
                     modified_at: modified_time(&entry_path),
                     title,
+                    language: language.map(str::to_string),
+                    size_bytes: entry.metadata().ok().map(|m| m.len()),
                 });
             }
         }
@@ -310,11 +452,39 @@ pub fn read_file_impl(path: &str) -> Result<FileContent, AppError> {
     if !file_path.exists() {
         return Err(AppError::NotFound(path.to_string()));
     }
-    let content = fs::read_to_string(&file_path)?;
+    let metadata = fs::metadata(&file_path)?;
+    let (kind, language) = classify_file(&file_path).ok_or_else(|| {
+        AppError::Unsupported(format!(
+            "Unsupported file type: {}",
+            file_path.to_string_lossy()
+        ))
+    })?;
+    if metadata.len() > MAX_EDITABLE_FILE_BYTES {
+        return Err(AppError::TooLarge(format!(
+            "{} is {} bytes",
+            file_path.to_string_lossy(),
+            metadata.len()
+        )));
+    }
+    reject_binary_sample(&file_path)?;
+    let content = fs::read_to_string(&file_path).map_err(|err| {
+        if err.kind() == std::io::ErrorKind::InvalidData {
+            AppError::Unsupported(format!(
+                "Only UTF-8 text files can be opened: {}",
+                file_path.to_string_lossy()
+            ))
+        } else {
+            AppError::from(err)
+        }
+    })?;
     Ok(FileContent {
         path: path.to_string(),
+        line_ending: detect_line_ending(&content),
         content,
         modified_at: modified_time(&file_path),
+        kind,
+        language: language.map(str::to_string),
+        size_bytes: metadata.len(),
     })
 }
 
@@ -323,8 +493,31 @@ pub async fn read_file(path: String) -> Result<FileContent, AppError> {
     blocking(move || read_file_impl(&path)).await
 }
 
-pub fn write_file_impl(path: &str, content: &str) -> Result<WriteResult, AppError> {
+pub fn write_file_impl(
+    path: &str,
+    content: &str,
+    expected_modified_at: Option<u64>,
+    expected_size: Option<u64>,
+) -> Result<WriteResult, AppError> {
     let file_path = PathBuf::from(path);
+    let original_metadata = fs::metadata(&file_path)?;
+
+    if let Some(expected) = expected_modified_at {
+        let current = modified_time(&file_path);
+        if current != expected {
+            return Err(AppError::Conflict(format!(
+                "File changed on disk before save: {path}"
+            )));
+        }
+    }
+
+    if let Some(expected) = expected_size {
+        if original_metadata.len() != expected {
+            return Err(AppError::Conflict(format!(
+                "File changed on disk before save: {path}"
+            )));
+        }
+    }
 
     // Atomic write: write to temp file, then rename
     let dir = file_path
@@ -332,6 +525,7 @@ pub fn write_file_impl(path: &str, content: &str) -> Result<WriteResult, AppErro
         .ok_or_else(|| AppError::Io("No parent directory".into()))?;
     let temp_path = dir.join(format!(".~{}", uuid::Uuid::new_v4()));
     fs::write(&temp_path, content)?;
+    fs::set_permissions(&temp_path, original_metadata.permissions())?;
     fs::rename(&temp_path, &file_path)?;
 
     Ok(WriteResult {
@@ -344,6 +538,8 @@ pub fn write_file_impl(path: &str, content: &str) -> Result<WriteResult, AppErro
 pub async fn write_file(
     path: String,
     content: String,
+    expected_modified_at: Option<u64>,
+    expected_size: Option<u64>,
     webview: tauri::Webview,
     app: tauri::AppHandle,
 ) -> Result<WriteResult, AppError> {
@@ -356,30 +552,44 @@ pub async fn write_file(
     crate::watcher::record_write(&state, &PathBuf::from(&path));
 
     let write_path = PathBuf::from(&path);
-    let result = blocking(move || write_file_impl(&path, &content)).await?;
+    let result =
+        blocking(move || write_file_impl(&path, &content, expected_modified_at, expected_size))
+            .await?;
     state.update_index_modified_at(&write_path, result.modified_at);
     let _ = app.emit_to(label, "sidebar:metadata-changed", &result.path);
     Ok(result)
 }
 
-pub(crate) fn markdown_file_entry(path: &Path) -> Option<DirEntry> {
-    if !path.is_file()
-        || !path
-            .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case("md"))
-    {
+pub(crate) fn file_entry(path: &Path) -> Option<DirEntry> {
+    if !path.is_file() {
         return None;
     }
-
+    let (kind, language) = classify_file(path)?;
+    let is_markdown = kind == WorkspaceEntryKind::Markdown;
     let name = path.file_name()?.to_string_lossy().to_string();
     Some(DirEntry {
         name,
         path: path.to_string_lossy().to_string(),
         is_dir: false,
-        is_markdown: true,
+        is_markdown,
+        kind,
         modified_at: modified_time(path),
-        title: extract_title(path),
+        title: if is_markdown {
+            extract_title(path)
+        } else {
+            None
+        },
+        language: language.map(str::to_string),
+        size_bytes: fs::metadata(path).ok().map(|m| m.len()),
     })
+}
+
+pub(crate) fn markdown_file_entry(path: &Path) -> Option<DirEntry> {
+    let entry = file_entry(path)?;
+    if entry.kind != WorkspaceEntryKind::Markdown {
+        return None;
+    }
+    Some(entry)
 }
 
 pub fn read_recent_files_impl(
@@ -390,7 +600,7 @@ pub fn read_recent_files_impl(
     state
         .recent_files_slice(offset, limit)
         .into_iter()
-        .filter_map(|file| markdown_file_entry(&file.path))
+        .filter_map(|file| file_entry(&file.path))
         .collect()
 }
 
@@ -419,7 +629,7 @@ pub fn read_file_entries_impl(paths: Vec<String>, root: &Path) -> Vec<DirEntry> 
             if !path.starts_with(root) {
                 return None;
             }
-            markdown_file_entry(&path)
+            file_entry(&path)
         })
         .collect()
 }
@@ -464,6 +674,10 @@ pub fn create_file_impl(path: &str) -> Result<FileContent, AppError> {
         path: path.to_string(),
         content: default_content.to_string(),
         modified_at: modified_time(&file_path),
+        kind: WorkspaceEntryKind::Markdown,
+        language: Some("markdown".to_string()),
+        size_bytes: default_content.len() as u64,
+        line_ending: LineEnding::Lf,
     })
 }
 
@@ -493,8 +707,11 @@ pub fn create_directory_impl(path: &str) -> Result<DirEntry, AppError> {
         path: path.to_string(),
         is_dir: true,
         is_markdown: false,
+        kind: WorkspaceEntryKind::Directory,
         modified_at: modified_time(&dir_path),
         title: None,
+        language: None,
+        size_bytes: None,
     })
 }
 
@@ -763,7 +980,7 @@ mod tests {
     }
 
     #[test]
-    fn test_read_directory_includes_empty_folder_trees_but_filters_non_markdown_content() {
+    fn test_read_directory_includes_empty_folder_trees_but_filters_unsupported_content() {
         let dir = setup_test_dir();
         fs::create_dir_all(dir.path().join("drafts").join("nested")).unwrap();
         fs::write(dir.path().join("drafts").join(".DS_Store"), "hidden").unwrap();
@@ -791,7 +1008,7 @@ mod tests {
         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let (indexed, dirs) = crate::commands::search::index_workspace_impl(dir.path(), cancel);
         *state.file_index.write() = indexed;
-        *state.dirs_with_markdown.write() = dirs;
+        *state.dirs_with_visible_entries.write() = dirs;
         state.index_ready.store(true, Ordering::Relaxed);
 
         let result = read_directory_impl(&dir.path().to_string_lossy(), Some(&state)).unwrap();
@@ -822,6 +1039,9 @@ mod tests {
             relative_path: name.to_string(),
             name: name.to_string(),
             modified_at,
+            kind: WorkspaceEntryKind::Markdown,
+            language: Some("markdown".to_string()),
+            size_bytes: 0,
         }
     }
 
@@ -916,10 +1136,70 @@ mod tests {
     }
 
     #[test]
+    fn test_read_file_reports_line_endings() {
+        let dir = TempDir::new().unwrap();
+        let lf = dir.path().join("lf.md");
+        let crlf = dir.path().join("crlf.md");
+        let mixed = dir.path().join("mixed.md");
+        fs::write(&lf, "a\nb\n").unwrap();
+        fs::write(&crlf, "a\r\nb\r\n").unwrap();
+        fs::write(&mixed, "a\r\nb\n").unwrap();
+
+        assert_eq!(
+            read_file_impl(&lf.to_string_lossy()).unwrap().line_ending,
+            LineEnding::Lf
+        );
+        assert_eq!(
+            read_file_impl(&crlf.to_string_lossy()).unwrap().line_ending,
+            LineEnding::Crlf
+        );
+        assert_eq!(
+            read_file_impl(&mixed.to_string_lossy())
+                .unwrap()
+                .line_ending,
+            LineEnding::Mixed
+        );
+    }
+
+    #[test]
     fn test_read_file_not_found() {
         let result = read_file_impl("/nonexistent/file.md");
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), AppError::NotFound(_)));
+    }
+
+    #[test]
+    fn test_read_file_rejects_unsupported_extension() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("notes.txt");
+        fs::write(&path, "plain text").unwrap();
+
+        let result = read_file_impl(&path.to_string_lossy());
+
+        assert!(matches!(result, Err(AppError::Unsupported(_))));
+    }
+
+    #[test]
+    fn test_read_file_rejects_binary_sample() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        fs::write(&path, b"{\0}").unwrap();
+
+        let result = read_file_impl(&path.to_string_lossy());
+
+        assert!(matches!(result, Err(AppError::Binary(_))));
+    }
+
+    #[test]
+    fn test_read_file_rejects_too_large_file_before_reading_content() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        let file = fs::File::create(&path).unwrap();
+        file.set_len(MAX_EDITABLE_FILE_BYTES + 1).unwrap();
+
+        let result = read_file_impl(&path.to_string_lossy());
+
+        assert!(matches!(result, Err(AppError::TooLarge(_))));
     }
 
     #[test]
@@ -928,11 +1208,48 @@ mod tests {
         let path = dir.path().join("output.md");
         fs::write(&path, "old").unwrap();
 
-        let result = write_file_impl(&path.to_string_lossy(), "new content").unwrap();
+        let result = write_file_impl(&path.to_string_lossy(), "new content", None, None).unwrap();
         assert_eq!(result.path, path.to_string_lossy().to_string());
 
         let content = fs::read_to_string(&path).unwrap();
         assert_eq!(content, "new content");
+    }
+
+    #[test]
+    fn test_write_file_rejects_stale_metadata() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("output.md");
+        fs::write(&path, "old").unwrap();
+
+        let modified_at = modified_time(&path);
+        let size = fs::metadata(&path).unwrap().len();
+        fs::write(&path, "changed elsewhere").unwrap();
+
+        let result = write_file_impl(
+            &path.to_string_lossy(),
+            "new content",
+            Some(modified_at),
+            Some(size),
+        );
+
+        assert!(matches!(result, Err(AppError::Conflict(_))));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "changed elsewhere");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_write_file_preserves_unix_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("script.sh");
+        fs::write(&path, "#!/bin/sh\n").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+
+        write_file_impl(&path.to_string_lossy(), "#!/bin/sh\necho ok\n", None, None).unwrap();
+
+        let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o755);
     }
 
     #[test]
@@ -1201,7 +1518,7 @@ mod tests {
         let state = WorkspaceState::default();
         assert!(state.workspace_root.read().is_none());
         assert!(state.file_index.read().is_empty());
-        assert!(state.dirs_with_markdown.read().is_empty());
+        assert!(state.dirs_with_visible_entries.read().is_empty());
         assert!(!state.index_ready.load(Ordering::Relaxed));
         assert!(state.watcher_handle.read().is_none());
     }

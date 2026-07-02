@@ -28,8 +28,18 @@ export function readFile(path: string): Promise<FileContent> {
   return invoke("read_file", { path });
 }
 
-export function writeFile(path: string, content: string): Promise<WriteResult> {
-  return invoke("write_file", { path, content });
+export function writeFile(
+  path: string,
+  content: string,
+  expectedModifiedAt?: number,
+  expectedSize?: number,
+): Promise<WriteResult> {
+  return invoke("write_file", {
+    path,
+    content,
+    expectedModifiedAt: expectedModifiedAt ?? null,
+    expectedSize: expectedSize ?? null,
+  });
 }
 
 export function createFile(path: string): Promise<FileContent> {
@@ -125,7 +135,37 @@ export async function pickFile(): Promise<string | null> {
     directory: false,
     multiple: false,
     title: "Open File",
-    filters: [{ name: "Markdown", extensions: ["md", "mdx", "markdown", "txt"] }],
+    filters: [
+      {
+        name: "Text and Source",
+        extensions: [
+          "md",
+          "mdx",
+          "markdown",
+          "ts",
+          "tsx",
+          "js",
+          "jsx",
+          "rs",
+          "py",
+          "sh",
+          "bash",
+          "zsh",
+          "html",
+          "css",
+          "scss",
+          "json",
+          "jsonc",
+          "yaml",
+          "yml",
+          "toml",
+          "xml",
+          "env",
+          "swift",
+          "rb",
+        ],
+      },
+    ],
   });
   return selected;
 }

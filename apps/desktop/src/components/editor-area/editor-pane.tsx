@@ -6,8 +6,12 @@ import { EditorSearchOverview } from "./editor-search-overview";
 import { SectionRail } from "./section-rail";
 import { useCloseEditorSearchWhenInactive } from "./use-close-editor-search-when-inactive";
 import { useEditorSettingsRef } from "./use-editor-settings";
-import { useIsFileLoading } from "@/hooks/use-tabs";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { useFileKind, useIsFileLoading } from "@/hooks/use-tabs";
+import { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from "react";
+
+const SourceEditorPane = lazy(() =>
+  import("./source-editor").then((module) => ({ default: module.SourceEditorPane })),
+);
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
@@ -27,6 +31,7 @@ interface EditorPaneProps {
 
 export const EditorPane = memo(function EditorPane({ path, isActive }: EditorPaneProps) {
   const isLoading = useIsFileLoading(path);
+  const fileKind = useFileKind(path);
   const editorSettingsRef = useEditorSettingsRef();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [editorView, setEditorView] = useState<EditorView | null>(null);
@@ -45,6 +50,26 @@ export const EditorPane = memo(function EditorPane({ path, isActive }: EditorPan
           <AsciiSpinner />
         </div>
       </div>
+    );
+  }
+
+  if (fileKind === "sourceText") {
+    return (
+      <Suspense
+        fallback={
+          <div
+            className={
+              isActive ? "relative z-10 h-full" : "absolute inset-0 invisible pointer-events-none"
+            }
+          >
+            <div className="flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]">
+              <AsciiSpinner />
+            </div>
+          </div>
+        }
+      >
+        <SourceEditorPane path={path} isActive={isActive} />
+      </Suspense>
     );
   }
 

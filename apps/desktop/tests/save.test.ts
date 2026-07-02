@@ -106,4 +106,49 @@ describe("autosave", () => {
     expect(saved?.diskContent).toBe("second draft");
     expect(saved?.isDirty).toBe(false);
   });
+
+  test("saves source files as raw text with disk metadata preconditions", async () => {
+    useSettingsStore.setState({
+      settings: {
+        "files.trim-trailing-whitespace": true,
+        "files.insert-final-newline": true,
+      },
+      isLoaded: true,
+    });
+
+    const writePayloads: unknown[] = [];
+    mockedInvoke.mockImplementation((command, payload) => {
+      if (command === "read_file") {
+        return Promise.resolve({
+          path: "/config.toml",
+          content: "old\r\n",
+          modified_at: 10,
+          kind: "sourceText",
+          language: "toml",
+          size_bytes: 5,
+          line_ending: "crlf",
+        });
+      }
+
+      if (command === "write_file") {
+        writePayloads.push(payload);
+        return Promise.resolve({ path: "/config.toml", modified_at: 11 });
+      }
+
+      return Promise.resolve(null);
+    });
+
+    await useEditorStore.getState().openFile("/config.toml");
+    useEditorStore.getState().updateContent("/config.toml", "new\n");
+    await flushMicrotasks();
+
+    expect(writePayloads).toEqual([
+      {
+        path: "/config.toml",
+        content: "new\r\n",
+        expectedModifiedAt: 10,
+        expectedSize: 5,
+      },
+    ]);
+  });
 });

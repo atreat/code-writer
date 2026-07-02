@@ -155,7 +155,19 @@ describe("workspace-store", () => {
       directoryCache: new Map([
         [
           "/test",
-          [{ name: "a.md", path: "/test/a.md", is_dir: false, is_markdown: true, modified_at: 0 }],
+          [
+            {
+              name: "a.md",
+              path: "/test/a.md",
+              is_dir: false,
+              is_markdown: true,
+              kind: "markdown",
+              language: "markdown",
+              size_bytes: 0,
+              modified_at: 0,
+              title: null,
+            },
+          ],
         ],
       ]),
     });
@@ -1123,6 +1135,9 @@ describe("workspace-store closeWorkspace", () => {
           "/test/a.md",
           {
             path: "/test/a.md",
+            kind: "markdown",
+            language: "markdown",
+            sizeBytes: 0,
             frontmatter: null,
             content: "a",
             title: "",

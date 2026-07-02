@@ -132,7 +132,7 @@ pub fn record_write(state: &WorkspaceState, path: &Path) {
 }
 
 /// Push `path` into the file index if not already present, then refresh the
-/// `dirs_with_markdown` ancestry so the sidebar's "directory contains
+/// `dirs_with_visible_entries` ancestry so the sidebar's "directory contains
 /// markdown" check returns true for newly-populated subtrees.
 #[cfg(test)]
 fn add_to_index(state: &WorkspaceState, path: &Path, root: &Path) {
@@ -156,6 +156,9 @@ fn add_to_index_with_modified(state: &WorkspaceState, path: &Path, root: &Path, 
         .unwrap_or(path)
         .to_string_lossy()
         .to_string();
+    let Some((kind, language)) = crate::commands::fs::classify_file(path) else {
+        return;
+    };
     let name = path
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
@@ -165,18 +168,34 @@ fn add_to_index_with_modified(state: &WorkspaceState, path: &Path, root: &Path, 
         relative_path: rel,
         name,
         modified_at,
+        kind,
+        language: language.map(str::to_string),
+        size_bytes: path.metadata().ok().map(|m| m.len()).unwrap_or(0),
     });
     state.file_index_revision.fetch_add(1, Ordering::SeqCst);
     drop(index);
     state.invalidate_recent_files_cache();
 
-    state::register_ancestors(&mut state.dirs_with_markdown.write(), path, root);
+    state::register_ancestors(&mut state.dirs_with_visible_entries.write(), path, root);
 }
 
+/// Drop a single path from the file index and rebuild `dirs_with_visible_entries`.
+fn remove_from_index(state: &WorkspaceState, path: &Path, root: &Path) {
+    let removed = {
+        let mut index = state.file_index.write();
+        let before = index.len();
+        index.retain(|f| f.path != path);
+        before != index.len()
+    };
+    if removed {
+        state.invalidate_recent_files_cache();
+    }
+    let index = state.file_index.read();
+    *state.dirs_with_visible_entries.write() = state::rebuild_dirs_from_index(&index, root);
+}
 /// Drop every indexed path under `dir` (a removed folder) and rebuild
-/// `dirs_with_markdown`. Needed because FSEvents may report a single
+/// `dirs_with_visible_entries`. Needed because FSEvents may report a single
 /// `Remove(Folder)` without per-child Remove events.
-#[cfg(test)]
 fn remove_subtree_from_index(state: &WorkspaceState, dir: &Path, root: &Path) {
     let dir_with_sep = {
         let mut s = dir.to_path_buf();
@@ -197,7 +216,7 @@ fn remove_subtree_from_index(state: &WorkspaceState, dir: &Path, root: &Path) {
         state.invalidate_recent_files_cache();
     }
     let index = state.file_index.read();
-    *state.dirs_with_markdown.write() = state::rebuild_dirs_from_index(&index, root);
+    *state.dirs_with_visible_entries.write() = state::rebuild_dirs_from_index(&index, root);
 }
 
 /// Walk `dir` and merge every `.md` descendant into the file index.
@@ -274,6 +293,8 @@ fn prepare_mtime_update(
 }
 
 fn discovered_file(path: &Path, modified_at: u64) -> crate::state::IndexedFile {
+    let (kind, language) = crate::commands::fs::classify_file(path)
+        .expect("discovered watcher file must be a supported text file");
     crate::state::IndexedFile {
         path: path.to_path_buf(),
         relative_path: String::new(),
@@ -282,6 +303,9 @@ fn discovered_file(path: &Path, modified_at: u64) -> crate::state::IndexedFile {
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_default(),
         modified_at,
+        kind,
+        language: language.map(str::to_string),
+        size_bytes: path.metadata().ok().map(|metadata| metadata.len()).unwrap_or(0),
     }
 }
 
@@ -312,6 +336,9 @@ fn prepare_subtree_merge(
             relative_path,
             name: file.name,
             modified_at: file.modified_at,
+            kind: file.kind,
+            language: file.language,
+            size_bytes: file.size_bytes,
         });
         changed = true;
     }
@@ -334,7 +361,10 @@ fn publish_index_update(
     }
     if prepared.changed {
         let old_index = std::mem::replace(&mut *index, prepared.index);
-        let old_dirs = std::mem::replace(&mut *state.dirs_with_markdown.write(), prepared.dirs);
+        let old_dirs = std::mem::replace(
+            &mut *state.dirs_with_visible_entries.write(),
+            prepared.dirs,
+        );
         let old_recent_cache = state.recent_files_cache.write().take();
         state.file_index_revision.fetch_add(1, Ordering::SeqCst);
         return Ok(DeferredIndexDrop {
@@ -370,7 +400,6 @@ fn publish_prepared_index_for_snapshot(
     }
 }
 
-#[cfg(test)]
 fn add_subtree_to_index(state: &WorkspaceState, dir: &Path, root: &Path) {
     let prepared = prepare_subtree_merge(state, discover_subtree(dir), root);
     assert!(publish_index_update(state, prepared).is_ok());
@@ -503,7 +532,7 @@ pub fn start_watcher(
                     }
 
                     if !is_dir
-                        && path.extension().and_then(|e| e.to_str()) == Some("md")
+                        && crate::commands::fs::is_visible_file(path)
                         && path.exists()
                     {
                         let modified_at = crate::commands::fs::modified_time(path);
@@ -594,9 +623,9 @@ pub fn start_watcher(
                     // FSEvents coalesces Create+Remove for the same path
                     // within one watch window, and Modify(Name) doesn't tell
                     // us which side of the rename this path is.
-                    let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
+                    let is_visible_file = crate::commands::fs::is_visible_file(path);
                     let path_exists = path.exists();
-                    if is_md {
+                    if is_visible_file {
                         if path_exists {
                             let modified_at = crate::commands::fs::modified_time(path);
                             let found = vec![discovered_file(path, modified_at)];
@@ -952,7 +981,7 @@ mod tests {
         add_to_index(&state, &path, &root);
 
         assert_eq!(state.file_index.read().len(), 1);
-        assert!(state.dirs_with_markdown.read().contains(&root));
+        assert!(state.dirs_with_visible_entries.read().contains(&root));
     }
 
     #[test]
@@ -982,7 +1011,7 @@ mod tests {
         assert!(paths.contains(&nested.join("deeper/b.md")));
         assert_eq!(paths.len(), 2, "non-md files must not be indexed");
 
-        let dirs = state.dirs_with_markdown.read();
+        let dirs = state.dirs_with_visible_entries.read();
         assert!(dirs.contains(&nested));
         assert!(dirs.contains(&nested.join("deeper")));
         assert!(dirs.contains(&root), "ancestors register up to the root");
@@ -1056,7 +1085,7 @@ mod tests {
         assert!(!paths.contains(&inside), "direct child removed");
         assert!(!paths.contains(&inside2), "nested child removed");
 
-        let dirs = state.dirs_with_markdown.read();
+        let dirs = state.dirs_with_visible_entries.read();
         assert!(dirs.contains(&root));
         assert!(dirs.contains(&root.join("submarine")));
         assert!(!dirs.contains(&root.join("sub")));

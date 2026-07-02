@@ -20,9 +20,9 @@ pub struct WorkspaceState {
     pub file_index: RwLock<Vec<IndexedFile>>,
     pub file_index_revision: AtomicU64,
     pub recent_files_cache: RwLock<Option<Vec<IndexedFile>>>,
-    pub dirs_with_markdown: RwLock<HashSet<PathBuf>>,
+    pub dirs_with_visible_entries: RwLock<HashSet<PathBuf>>,
     /// Set to `true` after the first full index completes.
-    /// When `false`, `dir_contains_markdown` falls back to recursive check.
+    /// When `false`, directory visibility falls back to a recursive check.
     pub index_ready: AtomicBool,
     pub watcher_handle: RwLock<Option<RecommendedWatcher>>,
     /// Tracks recently written paths to avoid echo from file watcher.
@@ -73,6 +73,9 @@ pub struct IndexedFile {
     pub relative_path: String,
     pub name: String,
     pub modified_at: u64,
+    pub kind: crate::commands::fs::WorkspaceEntryKind,
+    pub language: Option<String>,
+    pub size_bytes: u64,
 }
 
 pub type WorkspaceRuntimeDrop = (
@@ -91,7 +94,7 @@ impl Default for WorkspaceState {
             file_index: RwLock::new(Vec::new()),
             file_index_revision: AtomicU64::new(0),
             recent_files_cache: RwLock::new(None),
-            dirs_with_markdown: RwLock::new(HashSet::new()),
+            dirs_with_visible_entries: RwLock::new(HashSet::new()),
             index_ready: AtomicBool::new(false),
             watcher_handle: RwLock::new(None),
             recent_writes: RwLock::new(HashMap::new()),
@@ -114,7 +117,7 @@ impl WorkspaceState {
         let file_index = std::mem::take(&mut *self.file_index.write());
         self.file_index_revision.fetch_add(1, Ordering::SeqCst);
         let recent_cache = self.recent_files_cache.write().take();
-        let dirs = std::mem::take(&mut *self.dirs_with_markdown.write());
+        let dirs = std::mem::take(&mut *self.dirs_with_visible_entries.write());
         self.index_ready.store(false, Ordering::SeqCst);
         let recent_writes = std::mem::take(&mut *self.recent_writes.write());
         let ignore = self.workspace_ignore.write().take();
@@ -446,7 +449,7 @@ pub fn register_ancestors(dirs: &mut HashSet<PathBuf>, file_path: &Path, root: &
     }
 }
 
-/// Rebuild dirs_with_markdown from the full file index.
+/// Rebuild dirs_with_visible_entries from the full file index.
 pub fn rebuild_dirs_from_index(files: &[IndexedFile], root: &Path) -> HashSet<PathBuf> {
     let mut dirs = HashSet::with_capacity(files.len());
     for file in files {
@@ -645,7 +648,10 @@ mod tests {
         let second_root = second.path().canonicalize().unwrap();
         let state = WorkspaceState::default();
         let (first_epoch, _, _) = state.transition_to_workspace(first_root.clone());
-        state.dirs_with_markdown.write().insert(first_root.clone());
+        state
+            .dirs_with_visible_entries
+            .write()
+            .insert(first_root.clone());
         state.index_ready.store(true, Ordering::SeqCst);
         state
             .recent_writes
@@ -654,7 +660,7 @@ mod tests {
 
         state.clear_workspace_if_current(&first_root).unwrap();
         assert!(state.workspace_snapshot().is_none());
-        assert!(state.dirs_with_markdown.read().is_empty());
+        assert!(state.dirs_with_visible_entries.read().is_empty());
         assert!(!state.index_ready.load(Ordering::SeqCst));
         assert!(state.recent_writes.read().is_empty());
         assert!(state.workspace_ignore.read().is_none());

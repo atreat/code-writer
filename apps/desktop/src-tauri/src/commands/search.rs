@@ -41,7 +41,7 @@ pub fn index_workspace(
     let displaced = state.with_workspace_snapshot(&root, epoch, || {
         let old_index = std::mem::replace(&mut *state.file_index.write(), indexed);
         let old_cache = state.recent_files_cache.write().take();
-        let old_dirs = std::mem::replace(&mut *state.dirs_with_markdown.write(), dirs);
+        let old_dirs = std::mem::replace(&mut *state.dirs_with_visible_entries.write(), dirs);
         state.file_index_revision.fetch_add(1, Ordering::SeqCst);
         state.index_ready.store(true, Ordering::Relaxed);
         (old_index, old_cache, old_dirs)
@@ -191,8 +191,12 @@ pub fn index_workspace_impl(
                     return ignore::WalkState::Continue;
                 }
                 if entry.file_type().is_some_and(|ft| ft.is_file())
-                    && entry.path().extension().and_then(|e| e.to_str()) == Some("md")
+                    && crate::commands::fs::is_visible_file(entry.path())
                 {
+                    let Some((kind, language)) = crate::commands::fs::classify_file(entry.path())
+                    else {
+                        return ignore::WalkState::Continue;
+                    };
                     let rel = entry
                         .path()
                         .strip_prefix(&root)
@@ -204,6 +208,9 @@ pub fn index_workspace_impl(
                         relative_path: rel,
                         name: entry.file_name().to_string_lossy().to_string(),
                         modified_at: crate::commands::fs::modified_time(entry.path()),
+                        kind,
+                        language: language.map(str::to_string),
+                        size_bytes: entry.metadata().ok().map(|m| m.len()).unwrap_or(0),
                     });
                 }
                 ignore::WalkState::Continue
@@ -329,7 +336,7 @@ mod tests {
     }
 
     #[test]
-    fn test_index_workspace_builds_dirs_with_markdown() {
+    fn test_index_workspace_builds_dirs_with_visible_entries() {
         let dir = setup_workspace();
         let root = dir.path().to_path_buf();
         let (_index, dirs) = index_workspace_test(dir.path());

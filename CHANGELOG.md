@@ -38,6 +38,7 @@
 
 ## 2026-07-02
 
+- Add lightweight source-code mode backed by CodeMirror. Allowlisted files such as TypeScript, JavaScript, Rust, Python, JSON, YAML, TOML, HTML/CSS/SCSS, shell scripts, Dockerfile, Makefile, Swift, and Ruby now appear in workspace navigation, search, recents, and direct-open flows, then open in a lazy-loaded source editor with line numbers, folding, bracket matching, basic search, and syntax highlighting. Source saves bypass markdown/frontmatter processing, preserve CRLF line endings and executable permissions, and use backend disk metadata checks to avoid overwriting external edits. Unsupported, binary, and oversized files are rejected before editable load.
 - Document the planned lightweight source-code mode under `docs/code-editor/`. The guide scopes the work around a kind-based workspace file model, a parallel CodeMirror source editor surface that leaves markdown editing unchanged, raw-text save/conflict safety, large-file and binary handling, CSP/worker constraints, and reuse of the existing Vite+, Rust, and WebdriverIO/Tauri validation harnesses.
 
 ## 2026-06-22

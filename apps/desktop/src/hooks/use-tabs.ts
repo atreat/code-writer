@@ -33,6 +33,18 @@ export function useFileContent(path: string | null) {
   return useEditorStore((s) => (path ? s.openFiles.get(path)?.content : undefined) ?? "");
 }
 
+export function useFileKind(path: string | null) {
+  return useEditorStore((s) => (path ? s.openFiles.get(path)?.kind : undefined) ?? "markdown");
+}
+
+export function useFileLanguage(path: string | null) {
+  return useEditorStore((s) => (path ? s.openFiles.get(path)?.language : undefined) ?? null);
+}
+
+export function useFileSizeBytes(path: string | null) {
+  return useEditorStore((s) => (path ? s.openFiles.get(path)?.sizeBytes : undefined) ?? 0);
+}
+
 export function useFileStats(path: string | null) {
   return useEditorStore((s) => (path ? s.openFiles.get(path)?.stats : undefined) ?? EMPTY_STATS);
 }

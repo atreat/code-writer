@@ -67,6 +67,9 @@ describe("keyboard shortcuts - tab navigation", () => {
           "/a.md",
           {
             path: "/a.md",
+            kind: "markdown",
+            language: "markdown",
+            sizeBytes: 0,
             frontmatter: "",
             content: "a",
             title: "",
@@ -86,6 +89,9 @@ describe("keyboard shortcuts - tab navigation", () => {
           "/b.md",
           {
             path: "/b.md",
+            kind: "markdown",
+            language: "markdown",
+            sizeBytes: 0,
             frontmatter: "",
             content: "b",
             title: "",

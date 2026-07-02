@@ -33,6 +33,9 @@ describe("editorApi", () => {
         "/test.md",
         {
           path: "/test.md",
+          kind: "markdown",
+          language: "markdown",
+          sizeBytes: 0,
           frontmatter: "",
           content: "hello",
           title: "",
@@ -65,6 +68,9 @@ describe("editorApi", () => {
         "/a.md",
         {
           path: "/a.md",
+          kind: "markdown",
+          language: "markdown",
+          sizeBytes: 0,
           frontmatter: "",
           content: "",
           title: "",
@@ -102,6 +108,9 @@ describe("editorApi", () => {
         "/a.md",
         {
           path: "/a.md",
+          kind: "markdown",
+          language: "markdown",
+          sizeBytes: 0,
           frontmatter: null,
           content: "modified",
           title: "",

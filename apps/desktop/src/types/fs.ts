@@ -1,16 +1,26 @@
+export type WorkspaceEntryKind = "directory" | "markdown" | "sourceText";
+export type LineEnding = "lf" | "crlf" | "mixed" | "none";
+
 export interface DirEntry {
   name: string;
   path: string;
   is_dir: boolean;
   is_markdown: boolean;
+  kind: WorkspaceEntryKind;
   modified_at: number;
   title: string | null;
+  language: string | null;
+  size_bytes: number | null;
 }
 
 export interface FileContent {
   path: string;
   content: string;
   modified_at: number;
+  kind: WorkspaceEntryKind;
+  language: string | null;
+  size_bytes: number;
+  line_ending?: LineEnding;
 }
 
 export interface WriteResult {

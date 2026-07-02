@@ -75,7 +75,7 @@ export const FileTreeNode = memo(function FileTreeNode({
   }
 
   function handleContextMenu(event: MouseEvent<HTMLElement>) {
-    if (!entry.is_dir && !entry.is_markdown) return;
+    if (!entry.is_dir && entry.kind !== "markdown" && entry.kind !== "sourceText") return;
     if (!onContextMenu) return;
     event.preventDefault();
     event.stopPropagation();

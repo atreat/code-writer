@@ -6,6 +6,7 @@ import {
   showFooterContextMenu,
   type FooterMetricSettingKey,
 } from "./footer-context-menu";
+import { useFileKind, useFileLanguage, useFileSizeBytes } from "@/hooks/use-tabs";
 
 function FooterMetric({ label, value }: { label: string; value: number }) {
   return (
@@ -17,6 +18,9 @@ function FooterMetric({ label, value }: { label: string; value: number }) {
 }
 
 export function DocumentFooter({ filePath }: { filePath: string }) {
+  const kind = useFileKind(filePath);
+  const language = useFileLanguage(filePath);
+  const sizeBytes = useFileSizeBytes(filePath);
   const stats = useFileStats(filePath);
   const setSetting = useSetSetting();
   const visibility: Record<FooterMetricSettingKey, boolean> = {
@@ -37,6 +41,15 @@ export function DocumentFooter({ filePath }: { filePath: string }) {
       },
     });
   };
+
+  if (kind === "sourceText") {
+    return (
+      <div className="flex absolute bottom-0 w-full z-10 h-11 shrink-0 items-center justify-end gap-5 px-6 text-[13px] leading-[1.15] text-[var(--text-muted)] md:px-8">
+        <FooterMetric label="bytes" value={sizeBytes} />
+        {language ? <span>{language}</span> : null}
+      </div>
+    );
+  }
 
   return (
     <div

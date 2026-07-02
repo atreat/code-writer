@@ -57,6 +57,8 @@ describe("filesystem IPC wrappers", () => {
     expect(mockedInvoke).toHaveBeenCalledWith("write_file", {
       path: "/test.md",
       content: "content",
+      expectedModifiedAt: null,
+      expectedSize: null,
     });
   });
 

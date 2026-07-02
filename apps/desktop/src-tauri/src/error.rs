@@ -10,6 +10,14 @@ pub enum AppError {
     AlreadyExists(String),
     #[error("Invalid path: {0}")]
     InvalidPath(String),
+    #[error("Conflict: {0}")]
+    Conflict(String),
+    #[error("Unsupported file: {0}")]
+    Unsupported(String),
+    #[error("File too large: {0}")]
+    TooLarge(String),
+    #[error("Binary file: {0}")]
+    Binary(String),
     #[error("No workspace is open")]
     NoWorkspace,
 }

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { FileContent } from "@/types/fs";
+import type { FileContent, LineEnding, WorkspaceEntryKind } from "@/types/fs";
 import * as tauri from "@/lib/tauri";
 import {
   getFrontmatterDisplayDate,
@@ -20,11 +20,16 @@ import {
 
 export interface OpenFile {
   path: string;
+  kind: WorkspaceEntryKind;
+  language: string | null;
   frontmatter: string | null;
   content: string;
   title: string;
   titleSource: TitleSource;
   diskContent: string;
+  diskModifiedAt?: number;
+  diskSizeBytes?: number;
+  lineEnding?: LineEnding;
   isDirty: boolean;
   isLoading: boolean;
   saveError: string | null;
@@ -33,6 +38,7 @@ export interface OpenFile {
   cursorPos: number;
   displayDate: string | null;
   stats: DocumentStats;
+  sizeBytes: number;
 }
 
 export interface Tab {
@@ -82,7 +88,13 @@ interface EditorState {
   ) => Promise<void>;
   updateContent: (path: string, content: string) => void;
   updateFrontmatter: (path: string, frontmatter: string | null) => void;
-  markSaved: (path: string, diskContent: string, hasNewerChanges?: boolean) => void;
+  markSaved: (
+    path: string,
+    diskContent: string,
+    hasNewerChanges?: boolean,
+    modifiedAt?: number,
+    sizeBytes?: number,
+  ) => void;
   setSaveError: (path: string, error: string | null) => void;
   reloadFromDisk: (path: string, rawContent: string) => void;
   updateScrollPos: (path: string, pos: number) => void;
@@ -126,14 +138,70 @@ export function createSettingsTab(id = createTabId()): Tab {
 
 const EMPTY_STATS: DocumentStats = { words: 0, characters: 0, paragraphs: 0 };
 
+function fallbackKindForPath(path: string): WorkspaceEntryKind {
+  const filename = path.split("/").pop()?.toLowerCase() ?? "";
+  const extension = filename.includes(".") ? filename.split(".").pop() : "";
+  if (extension === "md" || extension === "mdx" || extension === "markdown") return "markdown";
+  return "sourceText";
+}
+
+function hydrateLoadedFile(path: string, raw: FileContent, base: OpenFile): OpenFile {
+  const kind = raw.kind ?? fallbackKindForPath(path);
+  const language = raw.language ?? (kind === "markdown" ? "markdown" : null);
+
+  if (kind === "markdown") {
+    const parsed = parseDocument(raw.content);
+    return withDerived({
+      ...base,
+      path,
+      kind,
+      language,
+      frontmatter: parsed.frontmatter,
+      content: parsed.body ?? "",
+      title: parsed.title,
+      titleSource: parsed.titleSource,
+      diskContent: raw.content,
+      diskModifiedAt: raw.modified_at,
+      diskSizeBytes: raw.size_bytes ?? raw.content.length,
+      lineEnding: raw.line_ending,
+      isLoading: false,
+      sizeBytes: raw.size_bytes ?? raw.content.length,
+    });
+  }
+
+  return {
+    ...base,
+    path,
+    kind,
+    language,
+    frontmatter: null,
+    content: raw.content,
+    title: "",
+    titleSource: "none",
+    diskContent: raw.content,
+    diskModifiedAt: raw.modified_at,
+    diskSizeBytes: raw.size_bytes ?? raw.content.length,
+    lineEnding: raw.line_ending,
+    isLoading: false,
+    displayDate: null,
+    stats: EMPTY_STATS,
+    sizeBytes: raw.size_bytes ?? raw.content.length,
+  };
+}
+
 function createLoadingFile(path: string): OpenFile {
   return {
     path,
+    kind: fallbackKindForPath(path),
+    language: null,
     frontmatter: null,
     content: "",
     title: "",
     titleSource: "none",
     diskContent: "",
+    diskModifiedAt: undefined,
+    diskSizeBytes: undefined,
+    lineEnding: undefined,
     isDirty: false,
     isLoading: true,
     saveError: null,
@@ -142,6 +210,7 @@ function createLoadingFile(path: string): OpenFile {
     cursorPos: 0,
     displayDate: null,
     stats: EMPTY_STATS,
+    sizeBytes: 0,
   };
 }
 
@@ -272,24 +341,11 @@ async function ensureFileLoaded(path: string, set: EditorStateSetter, get: () =>
   const loadPromise = tauri
     .readFile(path)
     .then((raw) => {
-      const parsed = parseDocument(raw.content);
       set((state) => {
         const file = state.openFiles.get(path);
         if (!file) return state;
         const files = new Map(state.openFiles);
-        files.set(
-          path,
-          withDerived({
-            ...file,
-            path,
-            frontmatter: parsed.frontmatter,
-            content: parsed.body ?? "",
-            title: parsed.title,
-            titleSource: parsed.titleSource,
-            diskContent: raw.content,
-            isLoading: false,
-          }),
-        );
+        files.set(path, hydrateLoadedFile(path, raw, file));
         return { openFiles: files };
       });
     })
@@ -364,21 +420,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // in the startup IPC) so the editor mounts loaded; `ensureFileLoaded`
     // then short-circuits on the non-loading entry.
     if (prefetched && prefetched.path === path) {
-      const parsed = parseDocument(prefetched.content);
       set((state) => {
         const files = new Map(state.openFiles);
-        files.set(
-          path,
-          withDerived({
-            ...createLoadingFile(path),
-            frontmatter: parsed.frontmatter,
-            content: parsed.body ?? "",
-            title: parsed.title,
-            titleSource: parsed.titleSource,
-            diskContent: prefetched.content,
-            isLoading: false,
-          }),
-        );
+        files.set(path, hydrateLoadedFile(path, prefetched, createLoadingFile(path)));
         return { openFiles: files };
       });
     }
@@ -1092,18 +1136,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (!existing) return state;
       if (existing.content === content && existing.isDirty) return state;
 
-      const { title, titleSource } = inferTitle(content, existing.frontmatter);
       const files = new Map(state.openFiles);
-      files.set(
-        path,
-        withDerivedStats({
+      if (existing.kind === "markdown") {
+        const { title, titleSource } = inferTitle(content, existing.frontmatter);
+        files.set(
+          path,
+          withDerivedStats({
+            ...existing,
+            content,
+            title,
+            titleSource,
+            isDirty: true,
+          }),
+        );
+      } else {
+        files.set(path, {
           ...existing,
           content,
-          title,
-          titleSource,
           isDirty: true,
-        }),
-      );
+        });
+      }
       return { openFiles: files };
     });
 
@@ -1113,7 +1165,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   updateFrontmatter: (path: string, frontmatter: string | null) => {
     set((state) => {
       const file = state.openFiles.get(path);
-      if (!file || file.frontmatter === frontmatter) return state;
+      if (!file || file.kind !== "markdown" || file.frontmatter === frontmatter) return state;
 
       const { title, titleSource } = inferTitle(file.content, frontmatter);
       const files = new Map(state.openFiles);
@@ -1133,7 +1185,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     scheduleSave(path);
   },
 
-  markSaved: (path: string, diskContent: string, hasNewerChanges = false) => {
+  markSaved: (
+    path: string,
+    diskContent: string,
+    hasNewerChanges = false,
+    modifiedAt?: number,
+    sizeBytes?: number,
+  ) => {
     set((state) => {
       const file = state.openFiles.get(path);
       if (!file) return state;
@@ -1142,6 +1200,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       files.set(path, {
         ...file,
         diskContent,
+        diskModifiedAt: modifiedAt ?? file.diskModifiedAt,
+        diskSizeBytes: sizeBytes ?? diskContent.length,
         isDirty: hasNewerChanges,
         saveError: null,
       });
@@ -1162,25 +1222,41 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   reloadFromDisk: (path: string, rawContent: string) => {
     cancelSave(path);
-    const parsed = parseDocument(rawContent);
     set((state) => {
       const file = state.openFiles.get(path);
       if (!file) return state;
 
       const files = new Map(state.openFiles);
-      files.set(
-        path,
-        withDerived({
+      if (file.kind === "markdown") {
+        const parsed = parseDocument(rawContent);
+        files.set(
+          path,
+          withDerived({
+            ...file,
+            frontmatter: parsed.frontmatter,
+            content: parsed.body ?? "",
+            title: parsed.title,
+            titleSource: parsed.titleSource,
+            diskContent: rawContent,
+            diskModifiedAt: undefined,
+            diskSizeBytes: rawContent.length,
+            isDirty: false,
+            reloadVersion: file.reloadVersion + 1,
+            sizeBytes: rawContent.length,
+          }),
+        );
+      } else {
+        files.set(path, {
           ...file,
-          frontmatter: parsed.frontmatter,
-          content: parsed.body ?? "",
-          title: parsed.title,
-          titleSource: parsed.titleSource,
+          content: rawContent,
           diskContent: rawContent,
+          diskModifiedAt: undefined,
+          diskSizeBytes: rawContent.length,
           isDirty: false,
           reloadVersion: file.reloadVersion + 1,
-        }),
-      );
+          sizeBytes: rawContent.length,
+        });
+      }
       return { openFiles: files };
     });
   },

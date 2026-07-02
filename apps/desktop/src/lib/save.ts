@@ -13,7 +13,13 @@ const THROTTLE_MS = 1000;
  */
 export interface SaveStoreAccess {
   getOpenFile: (path: string) => OpenFile | undefined;
-  markSaved: (path: string, diskContent: string, hasNewerChanges: boolean) => void;
+  markSaved: (
+    path: string,
+    diskContent: string,
+    hasNewerChanges: boolean,
+    modifiedAt?: number,
+    sizeBytes?: number,
+  ) => void;
   setSaveError: (path: string, error: string) => void;
 }
 
@@ -122,7 +128,13 @@ function applyFileProcessing(content: string): string {
   return result;
 }
 
+function applySourceLineEndings(content: string, lineEnding: OpenFile["lineEnding"]) {
+  if (lineEnding !== "crlf") return content;
+  return content.replace(/\r?\n/g, "\r\n");
+}
+
 function serializeForSave(file: OpenFile) {
+  if (file.kind === "sourceText") return applySourceLineEndings(file.content, file.lineEnding);
   return applyFileProcessing(serializeDocument(file.frontmatter, file.content));
 }
 
@@ -145,13 +157,13 @@ async function performSave(path: string, controller = getSaveController(path)) {
   let shouldReschedule = false;
 
   try {
-    await tauri.writeFile(path, full);
+    const result = await tauri.writeFile(path, full, file.diskModifiedAt, file.diskSizeBytes);
 
     const latestFile = store.getOpenFile(path);
     if (!latestFile) return;
 
     shouldReschedule = serializeForSave(latestFile) !== full;
-    store.markSaved(path, full, shouldReschedule);
+    store.markSaved(path, full, shouldReschedule, result.modified_at, full.length);
   } catch (err) {
     console.error(`[save] Failed to save ${path}:`, err);
     const message = err instanceof Error ? err.message : String(err);

@@ -11,7 +11,17 @@ const ROOT = "/vault";
 
 function entry(path: string, is_dir: boolean): DirEntry {
   const name = path.slice(path.lastIndexOf("/") + 1);
-  return { name, path, is_dir, is_markdown: !is_dir, modified_at: 0, title: null };
+  return {
+    name,
+    path,
+    is_dir,
+    is_markdown: !is_dir,
+    kind: is_dir ? "directory" : "markdown",
+    language: is_dir ? null : "markdown",
+    size_bytes: is_dir ? null : 0,
+    modified_at: 0,
+    title: null,
+  };
 }
 
 describe("resolveDropDir", () => {

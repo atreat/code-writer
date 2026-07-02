@@ -1,0 +1,57 @@
+.source-editor-pane .cm-editor {
+  height: 100%;
+  color: var(--text-secondary);
+  background: transparent;
+  outline: none;
+}
+
+.source-editor-pane .cm-editor .cm-scroller {
+  overflow: auto !important;
+  clip-path: none;
+  font-family: var(--pm-code-font, "SF Mono", Menlo, Monaco, Consolas, monospace);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.source-editor-pane .cm-editor .cm-content {
+  box-sizing: border-box;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  min-height: 100%;
+  padding: 24px 32px 40vh 0;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: 0;
+}
+
+.source-editor-pane .cm-editor .cm-line {
+  padding-left: 8px;
+  padding-right: 24px;
+}
+
+.source-editor-pane .cm-editor .cm-gutters {
+  display: flex !important;
+  background: transparent;
+  color: var(--text-muted);
+  border-right: 1px solid var(--line-subtle);
+}
+
+.source-editor-pane .cm-editor .cm-activeLine,
+.source-editor-pane .cm-editor .cm-activeLineGutter {
+  background-color: color-mix(in srgb, var(--text-primary) 6%, transparent);
+}
+
+.source-editor-pane .cm-editor .cm-selectionBackground,
+.source-editor-pane .cm-editor.cm-focused .cm-selectionBackground {
+  background-color: var(--editor-selection-bg);
+}
+
+.source-editor-pane .cm-editor .cm-panels {
+  background: var(--surface-card);
+  color: var(--text-primary);
+  border-color: var(--line-subtle);
+  font-family: var(--ui-font);
+  font-size: 13px;
+}
