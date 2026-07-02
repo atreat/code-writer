@@ -1,12 +1,17 @@
 import type { MouseEvent } from "react";
-import { useFileStats } from "@/hooks/use-tabs";
+import {
+  useFileKind,
+  useFileLanguage,
+  useFileSizeBytes,
+  useFileStats,
+  useIsFileReadOnly,
+} from "@/hooks/use-tabs";
 import { useBooleanSetting, useSetSetting } from "@/hooks/use-settings";
 import {
   FOOTER_METRICS,
   showFooterContextMenu,
   type FooterMetricSettingKey,
 } from "./footer-context-menu";
-import { useFileKind, useFileLanguage, useFileSizeBytes } from "@/hooks/use-tabs";
 
 function FooterMetric({ label, value }: { label: string; value: number }) {
   return (
@@ -22,6 +27,7 @@ export function DocumentFooter({ filePath }: { filePath: string }) {
   const language = useFileLanguage(filePath);
   const sizeBytes = useFileSizeBytes(filePath);
   const stats = useFileStats(filePath);
+  const isReadOnly = useIsFileReadOnly(filePath);
   const setSetting = useSetSetting();
   const visibility: Record<FooterMetricSettingKey, boolean> = {
     "statusbar.show-words": useBooleanSetting("statusbar.show-words"),
@@ -29,8 +35,6 @@ export function DocumentFooter({ filePath }: { filePath: string }) {
     "statusbar.show-paragraphs": useBooleanSetting("statusbar.show-paragraphs"),
   };
   const visibleMetrics = FOOTER_METRICS.filter((metric) => visibility[metric.settingKey]);
-
-  if (visibleMetrics.length === 0) return null;
 
   const handleContextMenu = (event: MouseEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -47,9 +51,20 @@ export function DocumentFooter({ filePath }: { filePath: string }) {
       <div className="flex absolute bottom-0 w-full z-10 h-11 shrink-0 items-center justify-end gap-5 px-6 text-[13px] leading-[1.15] text-[var(--text-muted)] md:px-8">
         <FooterMetric label="bytes" value={sizeBytes} />
         {language ? <span>{language}</span> : null}
+        {isReadOnly ? <span>read-only</span> : null}
       </div>
     );
   }
+
+  if (kind === "unsupported" || kind === "tooLarge" || kind === "binary") {
+    return (
+      <div className="flex absolute bottom-0 w-full z-10 h-11 shrink-0 items-center justify-end gap-5 px-6 text-[13px] leading-[1.15] text-[var(--text-muted)] md:px-8">
+        <span>read-only</span>
+      </div>
+    );
+  }
+
+  if (visibleMetrics.length === 0) return null;
 
   return (
     <div

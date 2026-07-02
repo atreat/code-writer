@@ -15,6 +15,9 @@ pub enum WorkspaceEntryKind {
     Directory,
     Markdown,
     SourceText,
+    Unsupported,
+    TooLarge,
+    Binary,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -53,6 +56,7 @@ pub struct FileContent {
     pub language: Option<String>,
     pub size_bytes: u64,
     pub line_ending: LineEnding,
+    pub is_read_only: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -485,6 +489,7 @@ pub fn read_file_impl(path: &str) -> Result<FileContent, AppError> {
         kind,
         language: language.map(str::to_string),
         size_bytes: metadata.len(),
+        is_read_only: metadata.permissions().readonly(),
     })
 }
 
@@ -678,6 +683,7 @@ pub fn create_file_impl(path: &str) -> Result<FileContent, AppError> {
         language: Some("markdown".to_string()),
         size_bytes: default_content.len() as u64,
         line_ending: LineEnding::Lf,
+        is_read_only: false,
     })
 }
 

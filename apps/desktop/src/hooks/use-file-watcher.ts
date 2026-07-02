@@ -44,7 +44,7 @@ export function useFileWatcher() {
         const latest = editorApi.getOpenFiles().get(path);
         if (!latest || content.content === latest.diskContent) return;
         if (WATCHER_DEBUG) console.debug("[watcher] reload-from-disk", path);
-        editorApi.reloadFromDisk(path, content.content);
+        editorApi.reloadFromDisk(path, content);
       });
     });
 

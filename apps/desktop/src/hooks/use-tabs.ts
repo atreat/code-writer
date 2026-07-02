@@ -45,6 +45,20 @@ export function useFileSizeBytes(path: string | null) {
   return useEditorStore((s) => (path ? s.openFiles.get(path)?.sizeBytes : undefined) ?? 0);
 }
 
+export function useFileUnavailableReason(path: string | null) {
+  return useEditorStore((s) => (path ? s.openFiles.get(path)?.unavailableReason : undefined));
+}
+
+export function useHasExternalConflict(path: string | null) {
+  return useEditorStore((s) =>
+    path ? s.openFiles.get(path)?.externalConflictContent !== undefined : false,
+  );
+}
+
+export function useIsFileReadOnly(path: string | null) {
+  return useEditorStore((s) => (path ? s.openFiles.get(path)?.isReadOnly : undefined) ?? false);
+}
+
 export function useFileStats(path: string | null) {
   return useEditorStore((s) => (path ? s.openFiles.get(path)?.stats : undefined) ?? EMPTY_STATS);
 }

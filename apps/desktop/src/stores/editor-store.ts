@@ -33,6 +33,11 @@ export interface OpenFile {
   isDirty: boolean;
   isLoading: boolean;
   saveError: string | null;
+  unavailableReason?: string;
+  externalConflictContent?: string;
+  externalConflictModifiedAt?: number;
+  externalConflictSizeBytes?: number;
+  isReadOnly: boolean;
   reloadVersion: number;
   scrollPos: number;
   cursorPos: number;
@@ -96,7 +101,9 @@ interface EditorState {
     sizeBytes?: number,
   ) => void;
   setSaveError: (path: string, error: string | null) => void;
-  reloadFromDisk: (path: string, rawContent: string) => void;
+  reloadFromDisk: (path: string, rawContent: string | FileContent) => void;
+  reloadExternalVersion: (path: string) => void;
+  keepLocalVersion: (path: string) => void;
   updateScrollPos: (path: string, pos: number) => void;
   updateCursorPos: (path: string, pos: number) => void;
 }
@@ -145,6 +152,50 @@ function fallbackKindForPath(path: string): WorkspaceEntryKind {
   return "sourceText";
 }
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function unavailableKindForReadError(error: unknown): WorkspaceEntryKind | null {
+  const message = errorMessage(error);
+  if (message.startsWith("Unsupported file:")) return "unsupported";
+  if (message.startsWith("File too large:")) return "tooLarge";
+  if (message.startsWith("Binary file:")) return "binary";
+  return null;
+}
+
+function createUnavailableFile(path: string, error: unknown): OpenFile | null {
+  const kind = unavailableKindForReadError(error);
+  if (!kind) return null;
+  return {
+    ...createLoadingFile(path),
+    kind,
+    isLoading: false,
+    isReadOnly: true,
+    unavailableReason: errorMessage(error),
+  };
+}
+
+function reloadPayload(raw: string | FileContent) {
+  if (typeof raw === "string") {
+    return {
+      content: raw,
+      modifiedAt: undefined,
+      sizeBytes: raw.length,
+      lineEnding: undefined,
+      isReadOnly: undefined,
+    };
+  }
+
+  return {
+    content: raw.content,
+    modifiedAt: raw.modified_at,
+    sizeBytes: raw.size_bytes,
+    lineEnding: raw.line_ending,
+    isReadOnly: raw.is_read_only,
+  };
+}
+
 function hydrateLoadedFile(path: string, raw: FileContent, base: OpenFile): OpenFile {
   const kind = raw.kind ?? fallbackKindForPath(path);
   const language = raw.language ?? (kind === "markdown" ? "markdown" : null);
@@ -165,6 +216,11 @@ function hydrateLoadedFile(path: string, raw: FileContent, base: OpenFile): Open
       diskSizeBytes: raw.size_bytes ?? raw.content.length,
       lineEnding: raw.line_ending,
       isLoading: false,
+      isReadOnly: raw.is_read_only ?? false,
+      unavailableReason: undefined,
+      externalConflictContent: undefined,
+      externalConflictModifiedAt: undefined,
+      externalConflictSizeBytes: undefined,
       sizeBytes: raw.size_bytes ?? raw.content.length,
     });
   }
@@ -183,6 +239,11 @@ function hydrateLoadedFile(path: string, raw: FileContent, base: OpenFile): Open
     diskSizeBytes: raw.size_bytes ?? raw.content.length,
     lineEnding: raw.line_ending,
     isLoading: false,
+    isReadOnly: raw.is_read_only ?? false,
+    unavailableReason: undefined,
+    externalConflictContent: undefined,
+    externalConflictModifiedAt: undefined,
+    externalConflictSizeBytes: undefined,
     displayDate: null,
     stats: EMPTY_STATS,
     sizeBytes: raw.size_bytes ?? raw.content.length,
@@ -204,7 +265,12 @@ function createLoadingFile(path: string): OpenFile {
     lineEnding: undefined,
     isDirty: false,
     isLoading: true,
+    isReadOnly: false,
     saveError: null,
+    unavailableReason: undefined,
+    externalConflictContent: undefined,
+    externalConflictModifiedAt: undefined,
+    externalConflictSizeBytes: undefined,
     reloadVersion: 0,
     scrollPos: 0,
     cursorPos: 0,
@@ -350,6 +416,18 @@ async function ensureFileLoaded(path: string, set: EditorStateSetter, get: () =>
       });
     })
     .catch((error) => {
+      const unavailableFile = createUnavailableFile(path, error);
+      if (unavailableFile) {
+        set((state) => {
+          const file = state.openFiles.get(path);
+          if (!file) return state;
+          const files = new Map(state.openFiles);
+          files.set(path, unavailableFile);
+          return { openFiles: files };
+        });
+        return;
+      }
+
       set((state) => {
         const file = state.openFiles.get(path);
         if (!file) return state;
@@ -1134,6 +1212,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => {
       const existing = state.openFiles.get(path);
       if (!existing) return state;
+      if (existing.kind !== "markdown" && existing.kind !== "sourceText") return state;
+      if (existing.isReadOnly) return state;
       if (existing.content === content && existing.isDirty) return state;
 
       const files = new Map(state.openFiles);
@@ -1204,6 +1284,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         diskSizeBytes: sizeBytes ?? diskContent.length,
         isDirty: hasNewerChanges,
         saveError: null,
+        externalConflictContent: undefined,
+        externalConflictModifiedAt: undefined,
+        externalConflictSizeBytes: undefined,
       });
       return { openFiles: files };
     });
@@ -1220,15 +1303,27 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
-  reloadFromDisk: (path: string, rawContent: string) => {
+  reloadFromDisk: (path: string, rawContent: string | FileContent) => {
+    const payload = reloadPayload(rawContent);
     cancelSave(path);
     set((state) => {
       const file = state.openFiles.get(path);
       if (!file) return state;
 
       const files = new Map(state.openFiles);
+      if (file.isDirty) {
+        files.set(path, {
+          ...file,
+          saveError: "This file changed on disk.",
+          externalConflictContent: payload.content,
+          externalConflictModifiedAt: payload.modifiedAt,
+          externalConflictSizeBytes: payload.sizeBytes,
+        });
+        return { openFiles: files };
+      }
+
       if (file.kind === "markdown") {
-        const parsed = parseDocument(rawContent);
+        const parsed = parseDocument(payload.content);
         files.set(
           path,
           withDerived({
@@ -1237,28 +1332,111 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             content: parsed.body ?? "",
             title: parsed.title,
             titleSource: parsed.titleSource,
-            diskContent: rawContent,
-            diskModifiedAt: undefined,
-            diskSizeBytes: rawContent.length,
+            diskContent: payload.content,
+            diskModifiedAt: payload.modifiedAt,
+            diskSizeBytes: payload.sizeBytes,
+            lineEnding: payload.lineEnding,
+            isReadOnly: payload.isReadOnly ?? file.isReadOnly,
             isDirty: false,
+            saveError: null,
+            externalConflictContent: undefined,
+            externalConflictModifiedAt: undefined,
+            externalConflictSizeBytes: undefined,
             reloadVersion: file.reloadVersion + 1,
-            sizeBytes: rawContent.length,
+            sizeBytes: payload.sizeBytes,
           }),
         );
-      } else {
+      } else if (file.kind === "sourceText") {
         files.set(path, {
           ...file,
-          content: rawContent,
-          diskContent: rawContent,
-          diskModifiedAt: undefined,
-          diskSizeBytes: rawContent.length,
+          content: payload.content,
+          diskContent: payload.content,
+          diskModifiedAt: payload.modifiedAt,
+          diskSizeBytes: payload.sizeBytes,
+          lineEnding: payload.lineEnding,
+          isReadOnly: payload.isReadOnly ?? file.isReadOnly,
           isDirty: false,
+          saveError: null,
+          externalConflictContent: undefined,
+          externalConflictModifiedAt: undefined,
+          externalConflictSizeBytes: undefined,
           reloadVersion: file.reloadVersion + 1,
-          sizeBytes: rawContent.length,
+          sizeBytes: payload.sizeBytes,
         });
       }
       return { openFiles: files };
     });
+  },
+
+  reloadExternalVersion: (path: string) => {
+    cancelSave(path);
+    set((state) => {
+      const file = state.openFiles.get(path);
+      if (!file || file.externalConflictContent === undefined) return state;
+
+      const files = new Map(state.openFiles);
+      if (file.kind === "markdown") {
+        const parsed = parseDocument(file.externalConflictContent);
+        files.set(
+          path,
+          withDerived({
+            ...file,
+            frontmatter: parsed.frontmatter,
+            content: parsed.body ?? "",
+            title: parsed.title,
+            titleSource: parsed.titleSource,
+            diskContent: file.externalConflictContent,
+            diskModifiedAt: file.externalConflictModifiedAt,
+            diskSizeBytes: file.externalConflictSizeBytes,
+            isDirty: false,
+            saveError: null,
+            externalConflictContent: undefined,
+            externalConflictModifiedAt: undefined,
+            externalConflictSizeBytes: undefined,
+            reloadVersion: file.reloadVersion + 1,
+            sizeBytes: file.externalConflictSizeBytes ?? file.externalConflictContent.length,
+          }),
+        );
+      } else if (file.kind === "sourceText") {
+        files.set(path, {
+          ...file,
+          content: file.externalConflictContent,
+          diskContent: file.externalConflictContent,
+          diskModifiedAt: file.externalConflictModifiedAt,
+          diskSizeBytes: file.externalConflictSizeBytes,
+          isDirty: false,
+          saveError: null,
+          externalConflictContent: undefined,
+          externalConflictModifiedAt: undefined,
+          externalConflictSizeBytes: undefined,
+          reloadVersion: file.reloadVersion + 1,
+          sizeBytes: file.externalConflictSizeBytes ?? file.externalConflictContent.length,
+        });
+      }
+      return { openFiles: files };
+    });
+  },
+
+  keepLocalVersion: (path: string) => {
+    set((state) => {
+      const file = state.openFiles.get(path);
+      if (!file || file.externalConflictContent === undefined) return state;
+
+      const files = new Map(state.openFiles);
+      files.set(path, {
+        ...file,
+        diskContent: file.externalConflictContent,
+        diskModifiedAt: file.externalConflictModifiedAt,
+        diskSizeBytes: file.externalConflictSizeBytes,
+        saveError: null,
+        externalConflictContent: undefined,
+        externalConflictModifiedAt: undefined,
+        externalConflictSizeBytes: undefined,
+      });
+      return { openFiles: files };
+    });
+
+    scheduleSave(path);
   },
 
   updateScrollPos: (path: string, pos: number) => {

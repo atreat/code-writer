@@ -434,6 +434,76 @@ describe("editor-store", () => {
     expect(file?.content).toBe("modified");
   });
 
+  test("expected unavailable read errors keep a read-only file tab open", async () => {
+    mockedInvoke.mockRejectedValue("Unsupported file: Unsupported file type: /test/plain.txt");
+
+    await useEditorStore.getState().openFile("/test/plain.txt");
+
+    const file = useEditorStore.getState().openFiles.get("/test/plain.txt");
+    expect(tabPaths()).toEqual(["/test/plain.txt"]);
+    expect(file?.kind).toBe("unsupported");
+    expect(file?.isLoading).toBe(false);
+    expect(file?.isReadOnly).toBe(true);
+    expect(file?.unavailableReason).toContain("Unsupported file");
+  });
+
+  test("dirty file reload enters external conflict without replacing local content", async () => {
+    mockedInvoke.mockResolvedValue({
+      path: "/config.toml",
+      content: "old = true",
+      modified_at: 1,
+      kind: "sourceText",
+      language: "toml",
+      size_bytes: 10,
+    });
+
+    await useEditorStore.getState().openFile("/config.toml");
+    useEditorStore.getState().updateContent("/config.toml", "local = true");
+    useEditorStore.getState().reloadFromDisk("/config.toml", {
+      path: "/config.toml",
+      content: "external = true",
+      modified_at: 2,
+      kind: "sourceText",
+      language: "toml",
+      size_bytes: 15,
+    });
+
+    const file = useEditorStore.getState().openFiles.get("/config.toml");
+    expect(file?.content).toBe("local = true");
+    expect(file?.isDirty).toBe(true);
+    expect(file?.saveError).toBe("This file changed on disk.");
+    expect(file?.externalConflictContent).toBe("external = true");
+  });
+
+  test("conflict reload action replaces dirty content with external content", async () => {
+    mockedInvoke.mockResolvedValue({
+      path: "/config.toml",
+      content: "old = true",
+      modified_at: 1,
+      kind: "sourceText",
+      language: "toml",
+      size_bytes: 10,
+    });
+
+    await useEditorStore.getState().openFile("/config.toml");
+    useEditorStore.getState().updateContent("/config.toml", "local = true");
+    useEditorStore.getState().reloadFromDisk("/config.toml", {
+      path: "/config.toml",
+      content: "external = true",
+      modified_at: 2,
+      kind: "sourceText",
+      language: "toml",
+      size_bytes: 15,
+    });
+    useEditorStore.getState().reloadExternalVersion("/config.toml");
+
+    const file = useEditorStore.getState().openFiles.get("/config.toml");
+    expect(file?.content).toBe("external = true");
+    expect(file?.isDirty).toBe(false);
+    expect(file?.saveError).toBeNull();
+    expect(file?.diskModifiedAt).toBe(2);
+  });
+
   test("markSaved clears dirty flag", async () => {
     mockedInvoke.mockResolvedValue({
       path: "/test.md",
@@ -1145,6 +1215,7 @@ describe("workspace-store closeWorkspace", () => {
             diskContent: "a",
             isDirty: false,
             isLoading: false,
+            isReadOnly: false,
             saveError: null,
             reloadVersion: 0,
             scrollPos: 0,

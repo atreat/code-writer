@@ -27,7 +27,7 @@ import {
 } from "@codemirror/view";
 import { useCallback, useEffect, useRef } from "react";
 import * as editorApi from "@/hooks/editor-api";
-import { useFileLanguage, useReloadVersion } from "@/hooks/use-tabs";
+import { useFileLanguage, useIsFileReadOnly, useReloadVersion } from "@/hooks/use-tabs";
 import {
   baseSyntaxHighlights,
   baseTheme,
@@ -38,8 +38,10 @@ const sourceSync = Annotation.define<boolean>();
 
 function sourceEditorExtensions(
   languageCompartment: Compartment,
+  readOnlyCompartment: Compartment,
   getPath: () => string,
   disposed: () => boolean,
+  isReadOnly: boolean,
 ): Extension[] {
   return [
     history(),
@@ -57,6 +59,7 @@ function sourceEditorExtensions(
     generalSyntaxHighlights,
     baseTheme,
     languageCompartment.of([]),
+    readOnlyCompartment.of(EditorState.readOnly.of(isReadOnly)),
     EditorView.updateListener.of((update) => {
       if (update.selectionSet && !disposed()) {
         editorApi.updateCursorPos(getPath(), update.state.selection.main.head);
@@ -97,10 +100,13 @@ export function useSourceEditor(filePath: string, autoFocus = false) {
   const prevPathRef = useRef<string | null>(null);
   const prevReloadVersionRef = useRef(0);
   const languageCompartmentRef = useRef<Compartment | null>(null);
+  const readOnlyCompartmentRef = useRef<Compartment | null>(null);
   if (!languageCompartmentRef.current) languageCompartmentRef.current = new Compartment();
+  if (!readOnlyCompartmentRef.current) readOnlyCompartmentRef.current = new Compartment();
 
   const reloadVersion = useReloadVersion(filePath);
   const language = useFileLanguage(filePath);
+  const isReadOnly = useIsFileReadOnly(filePath);
 
   filePathRef.current = filePath;
   autoFocusRef.current = autoFocus;
@@ -124,8 +130,10 @@ export function useSourceEditor(filePath: string, autoFocus = false) {
         doc: file?.content ?? "",
         extensions: sourceEditorExtensions(
           languageCompartmentRef.current!,
+          readOnlyCompartmentRef.current!,
           () => filePathRef.current,
           () => disposedRef.current,
+          file?.isReadOnly ?? isReadOnly,
         ),
       }),
     });
@@ -184,6 +192,13 @@ export function useSourceEditor(filePath: string, autoFocus = false) {
       cancelled = true;
     };
   }, [filePath, language]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    const compartment = readOnlyCompartmentRef.current;
+    if (!view || !compartment || disposedRef.current) return;
+    view.dispatch({ effects: compartment.reconfigure(EditorState.readOnly.of(isReadOnly)) });
+  }, [isReadOnly]);
 
   return mountRef;
 }

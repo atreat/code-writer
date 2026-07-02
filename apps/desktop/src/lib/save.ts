@@ -135,7 +135,10 @@ function applySourceLineEndings(content: string, lineEnding: OpenFile["lineEndin
 
 function serializeForSave(file: OpenFile) {
   if (file.kind === "sourceText") return applySourceLineEndings(file.content, file.lineEnding);
-  return applyFileProcessing(serializeDocument(file.frontmatter, file.content));
+  if (file.kind === "markdown") {
+    return applyFileProcessing(serializeDocument(file.frontmatter, file.content));
+  }
+  throw new Error(`Cannot save ${file.kind} file`);
 }
 
 async function performSave(path: string, controller = getSaveController(path)) {
@@ -143,7 +146,7 @@ async function performSave(path: string, controller = getSaveController(path)) {
 
   const store = requireStore();
   const file = store.getOpenFile(path);
-  if (!file || !file.isDirty) {
+  if (!file || !file.isDirty || file.isReadOnly) {
     controller.pending = false;
     cleanupSaveController(path, controller);
     return;

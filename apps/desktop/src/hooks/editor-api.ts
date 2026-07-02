@@ -1,4 +1,5 @@
 import { useEditorStore } from "@/stores/editor-store";
+import type { FileContent } from "@/types/fs";
 export type { OpenFile, Tab, SessionTab } from "@/stores/editor-store";
 
 export function getOpenFile(path: string) {
@@ -41,8 +42,16 @@ export function updateFrontmatter(path: string, frontmatter: string | null) {
   useEditorStore.getState().updateFrontmatter(path, frontmatter);
 }
 
-export function reloadFromDisk(path: string, rawContent: string) {
+export function reloadFromDisk(path: string, rawContent: string | FileContent) {
   useEditorStore.getState().reloadFromDisk(path, rawContent);
+}
+
+export function keepLocalVersion(path: string) {
+  useEditorStore.getState().keepLocalVersion(path);
+}
+
+export function reloadExternalVersion(path: string) {
+  useEditorStore.getState().reloadExternalVersion(path);
 }
 
 export function navigateToFile(path: string) {
