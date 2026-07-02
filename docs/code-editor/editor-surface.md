@@ -71,7 +71,7 @@ Reasoning:
 
 The validation spike should prove CodeMirror source mode covers:
 
-- TypeScript/JavaScript, Rust, Python, JSON, YAML, TOML, HTML, CSS/SCSS, shell, Dockerfile, Makefile.
+- TypeScript/JavaScript, Rust, Python, Swift, Ruby, JSON, YAML, TOML, HTML, CSS/SCSS, shell, Dockerfile, Makefile.
 - Syntax highlighting quality.
 - Line numbers, folding, bracket matching, comments, basic search.
 - Lazy-load cost.
@@ -109,7 +109,7 @@ Source mode should support:
 - Cmd+F in-file find.
 - Cmd+G / Cmd+Shift+G next/previous match.
 - Cmd+/ line comment if the chosen editor supports it for the language.
-- Cmd+Shift+P should remain reserved for Writer's command palette. Disable or avoid Monaco's command palette if Monaco is used.
+- Cmd+Shift+P should remain reserved for Writer's command palette.
 
 Update `docs/keyboard-shortcuts.md` when behavior is implemented.
 
