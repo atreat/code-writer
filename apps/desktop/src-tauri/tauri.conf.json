@@ -53,6 +53,11 @@
         "ext": ["md", "markdown"],
         "mimeType": "text/markdown",
         "role": "Editor"
+      },
+      {
+        "ext": ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "tif", "tiff", "avif"],
+        "mimeType": "image/png",
+        "role": "Viewer"
       }
     ],
     "icon": [

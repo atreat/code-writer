@@ -56,6 +56,16 @@ export function DocumentFooter({ filePath }: { filePath: string }) {
     );
   }
 
+  if (kind === "image") {
+    return (
+      <div className="flex absolute bottom-0 w-full z-10 h-11 shrink-0 items-center justify-end gap-5 px-6 text-[13px] leading-[1.15] text-[var(--text-muted)] md:px-8">
+        <span>image</span>
+        <FooterMetric label="bytes" value={sizeBytes} />
+        <span>read-only</span>
+      </div>
+    );
+  }
+
   if (kind === "unsupported" || kind === "tooLarge" || kind === "binary") {
     return (
       <div className="flex absolute bottom-0 w-full z-10 h-11 shrink-0 items-center justify-end gap-5 px-6 text-[13px] leading-[1.15] text-[var(--text-muted)] md:px-8">

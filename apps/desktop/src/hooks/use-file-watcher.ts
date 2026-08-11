@@ -42,7 +42,13 @@ export function useFileWatcher() {
       cancelSave(path);
       void tauri.readFile(path).then((content) => {
         const latest = editorApi.getOpenFiles().get(path);
-        if (!latest || content.content === latest.diskContent) return;
+        if (!latest) return;
+        // Image content is intentionally not read through IPC, so metadata can
+        // have the same second/size after an in-place replacement. The watcher
+        // event is already the change signal; reload the asset on every image
+        // event instead of trusting coarse filesystem metadata.
+        const unchanged = content.kind !== "image" && content.content === latest.diskContent;
+        if (unchanged) return;
         if (WATCHER_DEBUG) console.debug("[watcher] reload-from-disk", path);
         editorApi.reloadFromDisk(path, content);
       });

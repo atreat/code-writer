@@ -328,6 +328,20 @@ mod tests {
     }
 
     #[test]
+    fn test_index_workspace_includes_image_files() {
+        let dir = setup_workspace();
+        fs::write(dir.path().join("cover.webp"), [0, 1, 2, 3]).unwrap();
+
+        let (index, _dirs) = index_workspace_test(dir.path());
+
+        let cover = index.iter().find(|file| file.name == "cover.webp");
+        assert_eq!(
+            cover.map(|file| file.kind),
+            Some(crate::commands::fs::WorkspaceEntryKind::Image)
+        );
+    }
+
+    #[test]
     fn test_index_workspace_ignores_hidden() {
         let dir = setup_workspace();
         let (index, _dirs) = index_workspace_test(dir.path());

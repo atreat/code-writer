@@ -15,6 +15,7 @@ pub enum WorkspaceEntryKind {
     Directory,
     Markdown,
     SourceText,
+    Image,
     Unsupported,
     TooLarge,
     Binary,
@@ -267,6 +268,13 @@ pub(crate) fn classify_file(path: &Path) -> Option<(WorkspaceEntryKind, Option<&
         .and_then(|e| e.to_str())
         .map(|e| e.to_ascii_lowercase());
 
+    if matches!(
+        ext.as_deref(),
+        Some("png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "bmp" | "tif" | "tiff" | "avif")
+    ) {
+        return Some((WorkspaceEntryKind::Image, None));
+    }
+
     if matches!(ext.as_deref(), Some("md" | "mdx" | "markdown")) {
         return Some((WorkspaceEntryKind::Markdown, Some("markdown")));
     }
@@ -463,6 +471,19 @@ pub fn read_file_impl(path: &str) -> Result<FileContent, AppError> {
             file_path.to_string_lossy()
         ))
     })?;
+    if kind == WorkspaceEntryKind::Image {
+        return Ok(FileContent {
+            path: path.to_string(),
+            content: String::new(),
+            modified_at: modified_time(&file_path),
+            kind,
+            language: None,
+            size_bytes: metadata.len(),
+            line_ending: LineEnding::None,
+            is_read_only: metadata.permissions().readonly(),
+        });
+    }
+
     if metadata.len() > MAX_EDITABLE_FILE_BYTES {
         return Err(AppError::TooLarge(format!(
             "{} is {} bytes",
@@ -1038,6 +1059,22 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn test_read_directory_includes_image_files() {
+        let dir = setup_test_dir();
+        let image = dir.path().join("cover.PNG");
+        fs::write(&image, b"not decoded here").unwrap();
+
+        let result = read_directory_impl(&dir.path().to_string_lossy(), None).unwrap();
+        let entry = result.iter().find(|entry| entry.name == "cover.PNG");
+
+        assert_eq!(
+            entry.map(|entry| entry.kind),
+            Some(WorkspaceEntryKind::Image)
+        );
+        assert_eq!(entry.map(|entry| entry.is_markdown), Some(false));
+    }
+
     fn indexed_file(root: &Path, name: &str, modified_at: u64) -> crate::state::IndexedFile {
         let path = root.join(name);
         crate::state::IndexedFile {
@@ -1139,6 +1176,20 @@ mod tests {
 
         let result = read_file_impl(&path.to_string_lossy()).unwrap();
         assert_eq!(result.content, "# Test Content");
+    }
+
+    #[test]
+    fn test_read_image_returns_metadata_without_reading_as_text() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("cover.png");
+        fs::write(&path, [0, 159, 146, 150, 255, 0]).unwrap();
+
+        let result = read_file_impl(&path.to_string_lossy()).unwrap();
+
+        assert_eq!(result.kind, WorkspaceEntryKind::Image);
+        assert!(result.content.is_empty());
+        assert_eq!(result.size_bytes, 6);
+        assert_eq!(result.line_ending, LineEnding::None);
     }
 
     #[test]

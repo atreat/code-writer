@@ -3,7 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { useIsActive } from "@/hooks/use-tabs";
 import { getFileStem } from "@/lib/paths";
-import type { DirEntry } from "@/types/fs";
+import { isOpenableFileKind, type DirEntry } from "@/types/fs";
 import { FileIcon, FolderIcon } from "./file-tree-icons";
 import { useFileTreeLabel } from "./use-file-tree-label";
 
@@ -75,7 +75,7 @@ export const FileTreeNode = memo(function FileTreeNode({
   }
 
   function handleContextMenu(event: MouseEvent<HTMLElement>) {
-    if (!entry.is_dir && entry.kind !== "markdown" && entry.kind !== "sourceText") return;
+    if (!entry.is_dir && !isOpenableFileKind(entry.kind)) return;
     if (!onContextMenu) return;
     event.preventDefault();
     event.stopPropagation();

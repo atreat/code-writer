@@ -252,6 +252,60 @@ describe("editor-store", () => {
     expect(file?.content).toBe("\n# Hello\n\nBody");
   });
 
+  test("openFile hydrates image metadata without making it editable", async () => {
+    mockedInvoke.mockResolvedValue({
+      path: "/test/cover.png",
+      content: "",
+      modified_at: 1000,
+      kind: "image",
+      language: null,
+      size_bytes: 2048,
+      line_ending: "none",
+      is_read_only: true,
+    });
+
+    await useEditorStore.getState().openFile("/test/cover.png");
+
+    const file = useEditorStore.getState().openFiles.get("/test/cover.png");
+    expect(file?.kind).toBe("image");
+    expect(file?.content).toBe("");
+    expect(file?.sizeBytes).toBe(2048);
+    expect(file?.isReadOnly).toBe(true);
+
+    useEditorStore.getState().updateContent("/test/cover.png", "should be ignored");
+    expect(useEditorStore.getState().openFiles.get("/test/cover.png")?.isDirty).toBe(false);
+  });
+
+  test("reloadFromDisk remounts an image after an external change", async () => {
+    mockedInvoke.mockResolvedValue({
+      path: "/test/cover.png",
+      content: "",
+      modified_at: 1000,
+      kind: "image",
+      language: null,
+      size_bytes: 2048,
+      line_ending: "none",
+      is_read_only: true,
+    });
+
+    await useEditorStore.getState().openFile("/test/cover.png");
+    useEditorStore.getState().reloadFromDisk("/test/cover.png", {
+      path: "/test/cover.png",
+      content: "",
+      modified_at: 1001,
+      kind: "image",
+      language: null,
+      size_bytes: 4096,
+      line_ending: "none",
+      is_read_only: true,
+    });
+
+    const file = useEditorStore.getState().openFiles.get("/test/cover.png");
+    expect(file?.reloadVersion).toBe(1);
+    expect(file?.diskModifiedAt).toBe(1001);
+    expect(file?.sizeBytes).toBe(4096);
+  });
+
   test("updateFrontmatter(path, null) unmounts the frontmatter panel, dirties the file, and re-infers title", async () => {
     mockedInvoke.mockResolvedValue({
       path: "/test/file.md",

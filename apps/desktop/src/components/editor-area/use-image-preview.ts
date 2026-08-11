@@ -1,0 +1,274 @@
+import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "react";
+import {
+  fitImageTransform,
+  IMAGE_ZOOM_STEP,
+  zoomImageAt,
+  type ImagePreviewTransform,
+} from "./image-preview-logic";
+
+interface ImageSize {
+  width: number;
+  height: number;
+}
+
+interface ViewportSize {
+  width: number;
+  height: number;
+}
+
+type PreviewStatus = "loading" | "ready" | "error";
+
+interface GestureEventLike extends Event {
+  scale?: number;
+}
+
+function readSize(element: HTMLElement): ViewportSize {
+  return { width: element.clientWidth, height: element.clientHeight };
+}
+
+export function useImagePreview(reloadVersion: number) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const transformRef = useRef<ImagePreviewTransform>({ zoom: 1, panX: 0, panY: 0 });
+  const interactionRef = useRef(false);
+  const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 0, height: 0 });
+  const [imageSize, setImageSize] = useState<ImageSize | null>(null);
+  const [transform, setTransform] = useState<ImagePreviewTransform>(transformRef.current);
+  const [status, setStatus] = useState<PreviewStatus>("loading");
+  const [isDragging, setIsDragging] = useState(false);
+
+  transformRef.current = transform;
+
+  const fitToViewport = useCallback(() => {
+    if (!imageSize) return;
+    interactionRef.current = false;
+    setTransform(
+      fitImageTransform(imageSize.width, imageSize.height, viewportSize.width, viewportSize.height),
+    );
+  }, [imageSize, viewportSize]);
+
+  const zoomAt = useCallback((clientX: number, clientY: number, factor: number) => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const rect = viewport.getBoundingClientRect();
+    const localX = clientX - rect.left;
+    const localY = clientY - rect.top;
+    interactionRef.current = true;
+    setTransform((current) =>
+      zoomImageAt(current, localX, localY, rect.width, rect.height, factor),
+    );
+  }, []);
+
+  const zoomAtCenter = useCallback(
+    (factor: number) => {
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      const rect = viewport.getBoundingClientRect();
+      zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
+    },
+    [zoomAt],
+  );
+
+  const zoomIn = useCallback(() => zoomAtCenter(IMAGE_ZOOM_STEP), [zoomAtCenter]);
+  const zoomOut = useCallback(() => zoomAtCenter(1 / IMAGE_ZOOM_STEP), [zoomAtCenter]);
+
+  const handleImageLoad = useCallback((event: SyntheticEvent<HTMLImageElement>) => {
+    const image = event.currentTarget;
+    setImageSize({ width: image.naturalWidth, height: image.naturalHeight });
+    setStatus("ready");
+    interactionRef.current = false;
+  }, []);
+
+  const handleImageError = useCallback(() => {
+    setStatus("error");
+  }, []);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const updateSize = () => setViewportSize(readSize(viewport));
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!imageSize || interactionRef.current) return;
+    setTransform(
+      fitImageTransform(imageSize.width, imageSize.height, viewportSize.width, viewportSize.height),
+    );
+  }, [imageSize, viewportSize]);
+
+  useEffect(() => {
+    setStatus("loading");
+    setImageSize(null);
+    interactionRef.current = false;
+    setTransform({ zoom: 1, panX: 0, panY: 0 });
+  }, [reloadVersion]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    let dragPointerId: number | null = null;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let dragStartPanX = 0;
+    let dragStartPanY = 0;
+    let gestureStartScale: number | null = null;
+    let gestureStartTransform: ImagePreviewTransform | null = null;
+
+    const isControlTarget = (target: EventTarget | null) =>
+      target instanceof Element && target.closest("[data-image-preview-controls]") !== null;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 || isControlTarget(event.target)) return;
+      dragPointerId = event.pointerId;
+      dragStartX = event.clientX;
+      dragStartY = event.clientY;
+      dragStartPanX = transformRef.current.panX;
+      dragStartPanY = transformRef.current.panY;
+      interactionRef.current = true;
+      setIsDragging(true);
+      viewport.setPointerCapture(event.pointerId);
+      viewport.focus({ preventScroll: true });
+      event.preventDefault();
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (dragPointerId !== event.pointerId) return;
+      setTransform((current) => ({
+        ...current,
+        panX: dragStartPanX + event.clientX - dragStartX,
+        panY: dragStartPanY + event.clientY - dragStartY,
+      }));
+    };
+
+    const endDrag = (event: PointerEvent) => {
+      if (dragPointerId !== event.pointerId) return;
+      dragPointerId = null;
+      setIsDragging(false);
+      if (viewport.hasPointerCapture(event.pointerId))
+        viewport.releasePointerCapture(event.pointerId);
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      event.preventDefault();
+      const sensitivity = event.ctrlKey && !event.metaKey ? 0.01 : 0.0015;
+      zoomAt(event.clientX, event.clientY, Math.exp(-event.deltaY * sensitivity));
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isControlTarget(event.target)) return;
+      let handled = true;
+      switch (event.key) {
+        case "ArrowUp":
+          interactionRef.current = true;
+          setTransform((current) => ({ ...current, panY: current.panY + 24 }));
+          break;
+        case "ArrowDown":
+          interactionRef.current = true;
+          setTransform((current) => ({ ...current, panY: current.panY - 24 }));
+          break;
+        case "ArrowLeft":
+          interactionRef.current = true;
+          setTransform((current) => ({ ...current, panX: current.panX + 24 }));
+          break;
+        case "ArrowRight":
+          interactionRef.current = true;
+          setTransform((current) => ({ ...current, panX: current.panX - 24 }));
+          break;
+        case "+":
+        case "=":
+          zoomIn();
+          break;
+        case "-":
+        case "_":
+          zoomOut();
+          break;
+        case "0":
+          fitToViewport();
+          break;
+        default:
+          handled = false;
+      }
+      if (handled) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    const onGestureStart = (event: Event) => {
+      const gesture = event as GestureEventLike;
+      if (typeof gesture.scale !== "number") return;
+      gestureStartScale = gesture.scale;
+      gestureStartTransform = transformRef.current;
+      event.preventDefault();
+    };
+
+    const onGestureChange = (event: Event) => {
+      const gesture = event as GestureEventLike;
+      if (
+        typeof gesture.scale !== "number" ||
+        gestureStartScale === null ||
+        gestureStartTransform === null
+      )
+        return;
+      const rect = viewport.getBoundingClientRect();
+      interactionRef.current = true;
+      setTransform(
+        zoomImageAt(
+          gestureStartTransform,
+          rect.width / 2,
+          rect.height / 2,
+          rect.width,
+          rect.height,
+          gesture.scale / gestureStartScale,
+        ),
+      );
+      event.preventDefault();
+    };
+
+    const onGestureEnd = () => {
+      gestureStartScale = null;
+      gestureStartTransform = null;
+    };
+
+    viewport.addEventListener("pointerdown", onPointerDown);
+    viewport.addEventListener("pointermove", onPointerMove);
+    viewport.addEventListener("pointerup", endDrag);
+    viewport.addEventListener("pointercancel", endDrag);
+    viewport.addEventListener("wheel", onWheel, { passive: false });
+    viewport.addEventListener("keydown", onKeyDown);
+    viewport.addEventListener("gesturestart", onGestureStart, { passive: false });
+    viewport.addEventListener("gesturechange", onGestureChange, { passive: false });
+    viewport.addEventListener("gestureend", onGestureEnd);
+
+    return () => {
+      viewport.removeEventListener("pointerdown", onPointerDown);
+      viewport.removeEventListener("pointermove", onPointerMove);
+      viewport.removeEventListener("pointerup", endDrag);
+      viewport.removeEventListener("pointercancel", endDrag);
+      viewport.removeEventListener("wheel", onWheel);
+      viewport.removeEventListener("keydown", onKeyDown);
+      viewport.removeEventListener("gesturestart", onGestureStart);
+      viewport.removeEventListener("gesturechange", onGestureChange);
+      viewport.removeEventListener("gestureend", onGestureEnd);
+    };
+  }, [fitToViewport, zoomAt, zoomIn, zoomOut]);
+
+  return {
+    viewportRef,
+    imageSize,
+    status,
+    isDragging,
+    transform,
+    fitToViewport,
+    zoomIn,
+    zoomOut,
+    handleImageLoad,
+    handleImageError,
+  };
+}

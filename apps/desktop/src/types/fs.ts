@@ -2,9 +2,23 @@ export type WorkspaceEntryKind =
   | "directory"
   | "markdown"
   | "sourceText"
+  | "image"
   | "unsupported"
   | "tooLarge"
   | "binary";
+
+export const IMAGE_FILE_EXTENSIONS = [
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "svg",
+  "bmp",
+  "tif",
+  "tiff",
+  "avif",
+] as const;
 export type LineEnding = "lf" | "crlf" | "mixed" | "none";
 
 export interface DirEntry {
@@ -33,6 +47,10 @@ export interface FileContent {
 export interface WriteResult {
   path: string;
   modified_at: number;
+}
+
+export function isOpenableFileKind(kind: WorkspaceEntryKind): boolean {
+  return kind === "markdown" || kind === "sourceText" || kind === "image";
 }
 
 export interface WorkspaceInfo {

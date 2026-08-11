@@ -166,6 +166,24 @@ describe("workspace IPC wrappers", () => {
     expect(result).toBe("/selected/folder");
   });
 
+  test("pickFile offers the supported image formats", async () => {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    vi.mocked(open).mockResolvedValue("/selected/cover.png");
+
+    const result = await ipc.pickFile();
+    const options = vi.mocked(open).mock.calls[0]?.[0];
+
+    expect(options?.filters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "Images",
+          extensions: expect.arrayContaining(["png", "jpg", "webp", "svg"]),
+        }),
+      ]),
+    );
+    expect(result).toBe("/selected/cover.png");
+  });
+
   test("getRecentWorkspaces calls correct command", async () => {
     mockedInvoke.mockResolvedValue([]);
     await ipc.getRecentWorkspaces();

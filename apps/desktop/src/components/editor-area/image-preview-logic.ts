@@ -1,0 +1,52 @@
+export interface ImagePreviewTransform {
+  zoom: number;
+  panX: number;
+  panY: number;
+}
+
+export const IMAGE_ZOOM_MIN = 0.25;
+export const IMAGE_ZOOM_MAX = 4;
+export const IMAGE_ZOOM_STEP = 1.2;
+export const IMAGE_FIT_MARGIN = 32;
+
+export function clampImageZoom(zoom: number): number {
+  return Math.max(IMAGE_ZOOM_MIN, Math.min(IMAGE_ZOOM_MAX, zoom));
+}
+
+export function fitImageTransform(
+  naturalWidth: number,
+  naturalHeight: number,
+  viewportWidth: number,
+  viewportHeight: number,
+): ImagePreviewTransform {
+  if (naturalWidth <= 0 || naturalHeight <= 0 || viewportWidth <= 0 || viewportHeight <= 0) {
+    return { zoom: 1, panX: 0, panY: 0 };
+  }
+
+  const fit = Math.min(
+    (viewportWidth - IMAGE_FIT_MARGIN * 2) / naturalWidth,
+    (viewportHeight - IMAGE_FIT_MARGIN * 2) / naturalHeight,
+  );
+  return { zoom: clampImageZoom(fit), panX: 0, panY: 0 };
+}
+
+export function zoomImageAt(
+  transform: ImagePreviewTransform,
+  localX: number,
+  localY: number,
+  viewportWidth: number,
+  viewportHeight: number,
+  factor: number,
+): ImagePreviewTransform {
+  const nextZoom = clampImageZoom(transform.zoom * factor);
+  if (nextZoom === transform.zoom) return transform;
+
+  const imageX = (localX - viewportWidth / 2 - transform.panX) / transform.zoom;
+  const imageY = (localY - viewportHeight / 2 - transform.panY) / transform.zoom;
+
+  return {
+    zoom: nextZoom,
+    panX: localX - viewportWidth / 2 - imageX * nextZoom,
+    panY: localY - viewportHeight / 2 - imageY * nextZoom,
+  };
+}

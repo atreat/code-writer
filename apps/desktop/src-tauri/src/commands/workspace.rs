@@ -765,7 +765,7 @@ pub fn open_workspace_in_new_window(
     crate::open_new_workspace_window(&app, path, file)
 }
 
-/// Open a single markdown file in a standalone compact window (no
+/// Open a single supported file in a standalone compact window (no
 /// workspace). Focuses the existing window when one already hosts the file.
 #[tauri::command]
 pub fn open_file_in_standalone_window(path: String, app: tauri::AppHandle) -> Result<(), AppError> {

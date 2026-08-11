@@ -17,10 +17,10 @@ const EXIT_RUNTIME: u8 = 3;
 pub const USAGE: &str = "\
 Usage: writer [PATH]
 
-Open a folder or markdown file in the Writer desktop app.
+Open a folder or supported file in the Writer desktop app.
 
 Arguments:
-  PATH              Directory or .md/.markdown file to open. If omitted,
+  PATH              Directory or supported file to open. If omitted,
                     Writer launches with no target.
 
 Options:
@@ -400,11 +400,11 @@ mod tests {
     #[test]
     fn run_unsupported_file_is_runtime_error_without_launch() {
         let cwd = tempdir().unwrap();
-        let img = cwd.path().join("pic.png");
-        fs::write(&img, "").unwrap();
+        let unsupported = cwd.path().join("pic.bin");
+        fs::write(&unsupported, "").unwrap();
 
         let launcher = FakeLauncher::new();
-        let code = run(argv(&["writer", "pic.png"]), cwd.path(), &launcher);
+        let code = run(argv(&["writer", "pic.bin"]), cwd.path(), &launcher);
         assert_eq!(
             format!("{code:?}"),
             format!("{:?}", ExitCode::from(EXIT_RUNTIME))

@@ -57,7 +57,7 @@ pub async fn get_startup_state(
     let recent_workspaces = load_recent_workspaces(&app).unwrap_or_default();
     let startup_open = state.take_startup_open();
 
-    // Standalone file open (CLI arg / drag-drop of a markdown file): no
+    // Standalone file open (CLI arg / drag-drop of a supported file): no
     // workspace is prepared at all — no watcher tree, no gitignore load, no
     // index walk. Prefetch the file content so the compact editor mounts
     // loaded, and start the lightweight single-file watcher.

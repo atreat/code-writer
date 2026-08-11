@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 /// drag-drop, CLI arguments, or the single-instance plugin.
 ///
 /// Exactly one shape per source: a folder open carries `workspace` with no
-/// `file`; a text-file open carries `file` with no `workspace` — single
+/// `file`; a supported-file open carries `file` with no `workspace` — single
 /// files open standalone (compact window) and never imply a workspace.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PendingOpenPayload {
@@ -42,7 +42,11 @@ impl std::fmt::Display for OpenTargetError {
         match self {
             Self::NotFound(p) => write!(f, "path does not exist: {}", p.display()),
             Self::Unsupported(p) => {
-                write!(f, "not a directory or supported text file: {}", p.display())
+                write!(
+                    f,
+                    "not a directory or supported Writer file: {}",
+                    p.display()
+                )
             }
             Self::Io(err) => write!(f, "{err}"),
         }
@@ -52,7 +56,7 @@ impl std::fmt::Display for OpenTargetError {
 impl std::error::Error for OpenTargetError {}
 
 /// Lenient variant used by drag-drop and RunEvent::Opened. Returns `None`
-/// for anything that isn't a directory or a supported text file, matching the
+/// for anything that isn't a directory or a supported Writer file, matching the
 /// original `resolve_dropped_path` behavior.
 pub fn resolve_path(path: &Path) -> Option<PendingOpenPayload> {
     classify(path).ok()
@@ -108,7 +112,7 @@ mod tests {
     }
 
     #[test]
-    fn text_file_resolves_to_standalone_file_payload() {
+    fn supported_file_resolves_to_standalone_file_payload() {
         let dir = tempdir().unwrap();
         let file = dir.path().join("config.toml");
         fs::write(&file, "hello").unwrap();
@@ -125,9 +129,18 @@ mod tests {
     }
 
     #[test]
-    fn supported_text_extensions_resolve_case_insensitively() {
+    fn supported_extensions_resolve_case_insensitively() {
         let dir = tempdir().unwrap();
-        for name in ["a.md", "b.MD", "c.markdown", "d.MARKDOWN", "e.TOML", "f.RS"] {
+        for name in [
+            "a.md",
+            "b.MD",
+            "c.markdown",
+            "d.MARKDOWN",
+            "e.TOML",
+            "f.RS",
+            "g.PNG",
+            "h.webp",
+        ] {
             let path = dir.path().join(name);
             fs::write(&path, "").unwrap();
             let payload = validate_and_resolve(&path).unwrap();
@@ -138,7 +151,7 @@ mod tests {
     #[test]
     fn unsupported_file_is_unsupported() {
         let dir = tempdir().unwrap();
-        let file = dir.path().join("image.png");
+        let file = dir.path().join("archive.bin");
         fs::write(&file, "").unwrap();
 
         let err = validate_and_resolve(&file).unwrap_err();
@@ -157,7 +170,7 @@ mod tests {
     #[test]
     fn lenient_resolver_returns_none_for_unsupported() {
         let dir = tempdir().unwrap();
-        let file = dir.path().join("image.png");
+        let file = dir.path().join("archive.bin");
         fs::write(&file, "").unwrap();
         assert!(resolve_path(&file).is_none());
     }

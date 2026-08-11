@@ -1,5 +1,10 @@
 import { create } from "zustand";
-import type { FileContent, LineEnding, WorkspaceEntryKind } from "@/types/fs";
+import {
+  IMAGE_FILE_EXTENSIONS,
+  type FileContent,
+  type LineEnding,
+  type WorkspaceEntryKind,
+} from "@/types/fs";
 import * as tauri from "@/lib/tauri";
 import {
   getFrontmatterDisplayDate,
@@ -149,6 +154,8 @@ function fallbackKindForPath(path: string): WorkspaceEntryKind {
   const filename = path.split("/").pop()?.toLowerCase() ?? "";
   const extension = filename.includes(".") ? filename.split(".").pop() : "";
   if (extension === "md" || extension === "mdx" || extension === "markdown") return "markdown";
+  if (IMAGE_FILE_EXTENSIONS.includes(extension as (typeof IMAGE_FILE_EXTENSIONS)[number]))
+    return "image";
   return "sourceText";
 }
 
@@ -199,6 +206,32 @@ function reloadPayload(raw: string | FileContent) {
 function hydrateLoadedFile(path: string, raw: FileContent, base: OpenFile): OpenFile {
   const kind = raw.kind ?? fallbackKindForPath(path);
   const language = raw.language ?? (kind === "markdown" ? "markdown" : null);
+
+  if (kind === "image") {
+    return {
+      ...base,
+      path,
+      kind,
+      language: null,
+      frontmatter: null,
+      content: "",
+      title: "",
+      titleSource: "none",
+      diskContent: "",
+      diskModifiedAt: raw.modified_at,
+      diskSizeBytes: raw.size_bytes,
+      lineEnding: "none",
+      isLoading: false,
+      isReadOnly: true,
+      unavailableReason: undefined,
+      externalConflictContent: undefined,
+      externalConflictModifiedAt: undefined,
+      externalConflictSizeBytes: undefined,
+      displayDate: null,
+      stats: EMPTY_STATS,
+      sizeBytes: raw.size_bytes,
+    };
+  }
 
   if (kind === "markdown") {
     const parsed = parseDocument(raw.content);
@@ -1355,6 +1388,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           diskSizeBytes: payload.sizeBytes,
           lineEnding: payload.lineEnding,
           isReadOnly: payload.isReadOnly ?? file.isReadOnly,
+          isDirty: false,
+          saveError: null,
+          externalConflictContent: undefined,
+          externalConflictModifiedAt: undefined,
+          externalConflictSizeBytes: undefined,
+          reloadVersion: file.reloadVersion + 1,
+          sizeBytes: payload.sizeBytes,
+        });
+      } else if (file.kind === "image") {
+        files.set(path, {
+          ...file,
+          diskModifiedAt: payload.modifiedAt,
+          diskSizeBytes: payload.sizeBytes,
           isDirty: false,
           saveError: null,
           externalConflictContent: undefined,
