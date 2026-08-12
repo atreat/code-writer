@@ -21,8 +21,13 @@ This repo uses Vite+ through the `vp` CLI. Use `vp` instead of calling the packa
 
 ```bash
 vp install
-vp dev
+vp run dev
 ```
+
+`vp run dev` launches the Writer macOS application with Tauri and starts the
+frontend dev server automatically. The app window should open on its own;
+there is no need to open the Vite URL in a browser. Running `vp dev` by itself
+only starts the browser-based frontend server.
 
 ## Validation
 
