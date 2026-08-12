@@ -1,6 +1,6 @@
 # E2E tests
 
-End-to-end tests for the Writer desktop app, driven via WebdriverIO and the
+End-to-end tests for the CodeWriter desktop app, driven via WebdriverIO and the
 [Choochmeque/tauri-webdriver](https://github.com/Choochmeque/tauri-webdriver)
 plugin (the only viable WebDriver path for Tauri v2 on macOS as of April 2026 —
 official `tauri-driver` does not support macOS, see
@@ -35,9 +35,9 @@ and then runs the smoke spec. The first build is slow; incremental rebuilds
 are fast.
 
 > The e2e build uses an isolated bundle identifier (`com.writer-computer.e2e`)
-> so it does NOT collide with `tauri-plugin-single-instance` from a Writer
+> so it does NOT collide with `tauri-plugin-single-instance` from a CodeWriter
 > dev or release instance running in another worktree. You can leave your
-> normal Writer running.
+> normal CodeWriter running.
 
 ## What gets tested
 
@@ -60,11 +60,11 @@ bundle identifier (see below).
 
 ## How it works
 
-1. `pnpm run build:app` produces `Writer.app` with the `e2e` Cargo feature,
+1. `pnpm run build:app` produces `CodeWriter.app` with the `e2e` Cargo feature,
    which includes `tauri-plugin-webdriver` (an embedded HTTP WebDriver server).
 2. `wdio.conf.js` (`onPrepare`) spawns the `tauri-webdriver` intermediary CLI
    on port 4444.
-3. WebdriverIO connects to 4444; the intermediary launches `Writer.app` and
+3. WebdriverIO connects to 4444; the intermediary launches `CodeWriter.app` and
    proxies WebDriver commands to the embedded server.
 4. The spec runs; afterwards `onComplete` kills the intermediary and the app
    quits.
@@ -81,7 +81,7 @@ bundle identifier (see below).
   - `identifier: "com.writer-computer.e2e"` gives the e2e build its own
     `tauri-plugin-single-instance` namespace and its own app data dir
     (`~/Library/Application Support/com.writer-computer.e2e/`). Without this,
-    a Writer dev/release instance running in another worktree would intercept
+    a CodeWriter dev/release instance running in another worktree would intercept
     the launch and the WebDriver plugin would never start.
 - **Never enable `--features e2e` for releases shipped to users** — it opens
   an HTTP server on localhost:4445.

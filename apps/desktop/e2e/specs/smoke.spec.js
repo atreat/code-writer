@@ -7,7 +7,7 @@ import { join } from "node:path";
 // tauri-webdriver intermediary → embedded plugin → WKWebView → WebdriverIO)
 // works end-to-end. Assertions are intentionally minimal — the goal is
 // infrastructure validation, not feature coverage.
-describe("Writer app", function () {
+describe("CodeWriter app", function () {
   it("mounts the React app", async function () {
     // App.tsx renders a fragment in both the welcome and editor branches, so
     // wait for any React-owned child under the static index.html root.

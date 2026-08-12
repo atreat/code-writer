@@ -1,4 +1,4 @@
-# Writer Desktop
+# CodeWriter Desktop
 
 The desktop app is a Tauri v2 application with a React frontend and Rust backend.
 
@@ -8,7 +8,7 @@ Run it from the repo root with:
 vp run dev
 ```
 
-This launches the Writer macOS application with Tauri and starts the frontend
+This launches the CodeWriter macOS application with Tauri and starts the frontend
 dev server automatically. The app window should open on its own. Running
 `vp dev` by itself only starts the browser-based frontend server.
 

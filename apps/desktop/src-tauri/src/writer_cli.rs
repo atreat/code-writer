@@ -17,18 +17,18 @@ const EXIT_RUNTIME: u8 = 3;
 pub const USAGE: &str = "\
 Usage: writer [PATH]
 
-Open a folder or supported file in the Writer desktop app.
+Open a folder or supported file in the CodeWriter desktop app.
 
 Arguments:
   PATH              Directory or supported file to open. If omitted,
-                    Writer launches with no target.
+                    CodeWriter launches with no target.
 
 Options:
   -h, --help        Print this help and exit.
   -V, --version     Print version and exit.
 
 Environment:
-  WRITER_APP_PATH   Override the path to the Writer bundle (macOS) or
+  WRITER_APP_PATH   Override the path to the CodeWriter bundle (macOS) or
                     binary (Linux/Windows). Useful for development builds.
 ";
 
@@ -96,9 +96,9 @@ fn resolve_input_path(input: &Path, cwd: &Path) -> PathBuf {
 
 /// Trait boundary between the CLI's decision logic and the actual process
 /// spawn. Lets tests observe the exact path that would be handed to the app
-/// without requiring Writer to be installed.
+/// without requiring CodeWriter to be installed.
 pub trait Launcher {
-    /// Launch the Writer app. `target` is `None` for the no-arg case.
+    /// Launch the CodeWriter app. `target` is `None` for the no-arg case.
     fn launch(&self, target: Option<&Path>) -> Result<(), LaunchError>;
 }
 
@@ -112,7 +112,7 @@ impl std::fmt::Display for LaunchError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::AppNotFound(msg) => write!(f, "{msg}"),
-            Self::Io(err) => write!(f, "could not launch Writer: {err}"),
+            Self::Io(err) => write!(f, "could not launch CodeWriter: {err}"),
         }
     }
 }
@@ -142,7 +142,7 @@ fn launch_system(target: Option<&Path>) -> Result<(), LaunchError> {
         c
     } else {
         let mut c = Command::new("open");
-        c.arg("-a").arg("Writer");
+        c.arg("-a").arg("CodeWriter");
         c
     };
 
@@ -153,7 +153,7 @@ fn launch_system(target: Option<&Path>) -> Result<(), LaunchError> {
     let status = cmd.status()?;
     if !status.success() {
         return Err(LaunchError::AppNotFound(
-            "Writer is not installed. Install it from the DMG or set WRITER_APP_PATH.".into(),
+            "CodeWriter is not installed. Install it from the DMG or set WRITER_APP_PATH.".into(),
         ));
     }
     Ok(())
@@ -180,7 +180,7 @@ fn launch_system(target: Option<&Path>) -> Result<(), LaunchError> {
         Ok(_) => Ok(()),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
             Err(LaunchError::AppNotFound(format!(
-                "could not find the Writer binary ({}). Install Writer or set WRITER_APP_PATH.",
+                "could not find the CodeWriter binary ({}). Install CodeWriter or set WRITER_APP_PATH.",
                 program.to_string_lossy()
             )))
         }

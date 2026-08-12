@@ -2,6 +2,7 @@
 
 ## 2026-08-12
 
+- Rename the app to CodeWriter across the macOS bundle, menus, window titles, updater dialogs, website, and release documentation. Keep the existing `writer` command, bundle identifier, workspace paths, and internal identifiers for fork compatibility.
 - Fix the first image preview load getting stuck on “Loading image…” and keep image controls visible while hovering anywhere in the preview pane.
 - Move image preview controls below the full floating tab/window-drag chrome so they remain visible and clickable while moving into the control dock.
 - Make the image preview zoom percentage editable, including decimal micro-adjustments, bounded input, keyboard cancel/commit behavior, and preserved pan/gesture controls.

@@ -5,7 +5,7 @@ import { HeadContent, Outlet, Scripts, createRootRoute } from "@tanstack/react-r
 
 import styles from "../styles.css?url";
 
-const TITLE = "Writer — Fast and lightweight markdown editor";
+const TITLE = "CodeWriter — Fast and lightweight markdown editor";
 const DESCRIPTION =
   "Fast and lightweight app for your workspace's markdown files. Local-first. macOS.";
 const OG_DESCRIPTION = "Fast and lightweight app for your workspace's markdown files.";
@@ -17,7 +17,7 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1.0" },
       { title: TITLE },
       { name: "description", content: DESCRIPTION },
-      { property: "og:title", content: "Writer" },
+      { property: "og:title", content: "CodeWriter" },
       { property: "og:description", content: OG_DESCRIPTION },
       { property: "og:type", content: "website" },
       { property: "og:url", content: "https://writer.computer" },

@@ -1,8 +1,8 @@
-# Writer
+# CodeWriter
 
 Fast and lightweight app for your workspace's markdown files
 
-![Writer](./assets/screenshot.png)
+![CodeWriter](./assets/screenshot.png)
 
 It is built with Tauri v2, React, Zustand, CodeMirror, and Rust. The app keeps documents on disk, respects workspace `.gitignore` rules, supports multiple windows, renders extended markdown such as tables and Mermaid diagrams, and ships with a signed macOS release flow.
 
@@ -24,7 +24,7 @@ vp install
 vp run dev
 ```
 
-`vp run dev` launches the Writer macOS application with Tauri and starts the
+`vp run dev` launches the CodeWriter macOS application with Tauri and starts the
 frontend dev server automatically. The app window should open on its own;
 there is no need to open the Vite URL in a browser. Running `vp dev` by itself
 only starts the browser-based frontend server.

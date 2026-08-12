@@ -1,9 +1,9 @@
 //! Install/uninstall the `writer` command on the user's PATH.
 //!
-//! The running Writer binary is itself the CLI: `main.rs` dispatches to CLI
+//! The running CodeWriter binary is itself the CLI: `main.rs` dispatches to CLI
 //! mode when argv[0]'s basename is `writer`, so "install" is just a symlink
-//! from `/usr/local/bin/writer` to `Writer.app/Contents/MacOS/Writer`.
-//! When `Writer.app` is replaced in place by the updater, the symlink still
+//! from `/usr/local/bin/writer` to `CodeWriter.app/Contents/MacOS/desktop`.
+//! When `CodeWriter.app` is replaced in place by the updater, the symlink still
 //! points at the new binary because we link through the bundle path.
 //!
 //! macOS only for v1. Windows/Linux parity is deferred.
@@ -25,7 +25,7 @@ pub const INSTALL_TARGET: &str = "/usr/local/bin/writer";
 #[serde(rename_all = "camelCase")]
 pub struct CliInstallStatus {
     pub target: String,
-    /// Absolute path to the running Writer binary. Stable while the app is
+    /// Absolute path to the running CodeWriter binary. Stable while the app is
     /// installed in the same location.
     pub source: Option<String>,
     pub installed: bool,
@@ -37,7 +37,7 @@ pub struct CliInstallStatus {
 pub enum CliInstallState {
     /// `target` does not exist.
     Missing,
-    /// `target` is a symlink pointing at the current Writer binary.
+    /// `target` is a symlink pointing at the current CodeWriter binary.
     Installed,
     /// `target` is a symlink, but not to our current binary (older install
     /// or the app moved). Install will overwrite.
@@ -59,11 +59,11 @@ impl std::fmt::Display for InstallError {
         match self {
             Self::SourceUnknown => write!(
                 f,
-                "could not determine the Writer binary path (std::env::current_exe failed)."
+                "could not determine the CodeWriter binary path (std::env::current_exe failed)."
             ),
             Self::TargetOccupied(p) => write!(
                 f,
-                "{} already exists and is not a symlink. Remove it manually if you want Writer to manage it.",
+                "{} already exists and is not a symlink. Remove it manually if you want CodeWriter to manage it.",
                 p.display()
             ),
             Self::Io(err) => write!(f, "{err}"),

@@ -31,7 +31,7 @@ function HomePage() {
     <div className="page">
       <main className="hero">
         <header className="site-header">
-          <Link className="brand" to="/" aria-label="Writer">
+          <Link className="brand" to="/" aria-label="CodeWriter">
             <WriterMark size={18} />
             <span className="brand-rule" aria-hidden="true" />
           </Link>
@@ -104,7 +104,7 @@ function DemoVideo({ src }: { src: string }) {
         loop
         playsInline
         preload="metadata"
-        aria-label="Writer app demo"
+        aria-label="CodeWriter app demo"
       />
     </div>
   );

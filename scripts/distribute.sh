@@ -112,7 +112,7 @@ fi
 echo "Pushing master to origin..."
 git -C "$ROOT_DIR" push origin master
 
-echo "Building Writer $TAG..."
+echo "Building CodeWriter $TAG..."
 
 # Build signed and notarized DMG + updater artifacts (.app.tar.gz + .sig).
 cd "$ROOT_DIR/apps/desktop"
@@ -153,7 +153,7 @@ esac
 SIGNATURE=$(cat "$SIG_FILE")
 TAR_NAME=$(basename "$TAR_FILE")
 PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-NOTES="Writer $TAG"
+NOTES="CodeWriter $TAG"
 DOWNLOAD_URL="https://github.com/$RELEASE_REPO/releases/download/$TAG/$TAR_NAME"
 
 LATEST_JSON="$BUNDLE_DIR/latest.json"
@@ -184,7 +184,7 @@ echo "Creating draft release $TAG on $RELEASE_REPO..."
 
 gh release create "$TAG" "$DMG_FILE" "$TAR_FILE" "$LATEST_JSON" \
   --repo "$RELEASE_REPO" \
-  --title "Writer $TAG" \
+  --title "CodeWriter $TAG" \
   --notes-file "$NOTES_FILE" \
   --draft
 

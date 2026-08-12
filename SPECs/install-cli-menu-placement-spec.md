@@ -2,11 +2,11 @@
 
 ## Summary
 
-The "Install 'writer' Command in PATH" action is the third item in the macOS **Writer** application menu, with a long jargon-heavy label that confuses users who do not need a CLI. We will keep the action in the app menu (where macOS users expect optional, app-wide setup items) and place a conventional **Preferences…** entry alongside it, so the menu reads like a standard macOS app menu rather than a one-off pile of items. Tightening the CLI item's label and grouping reduces the noise without hiding the feature from the power users who want it.
+The "Install 'writer' Command in PATH" action is the third item in the macOS **CodeWriter** application menu, with a long jargon-heavy label that confuses users who do not need a CLI. We will keep the action in the app menu (where macOS users expect optional, app-wide setup items) and place a conventional **Preferences…** entry alongside it, so the menu reads like a standard macOS app menu rather than a one-off pile of items. Tightening the CLI item's label and grouping reduces the noise without hiding the feature from the power users who want it.
 
 ## Background
 
-The CLI install action is wired in `apps/desktop/src-tauri/src/lib.rs:160` and added to the `Writer` submenu at line 168. The label cycles between two strings defined at `lib.rs:28-30`:
+The CLI install action is wired in `apps/desktop/src-tauri/src/lib.rs:160` and added to the `CodeWriter` submenu at line 168. The label cycles between two strings defined at `lib.rs:28-30`:
 
 - `Shell Command: Install 'writer' Command in PATH`
 - `Shell Command: Uninstall 'writer' Command in PATH`
@@ -19,11 +19,11 @@ For context on the CLI itself, see [`SPECs/writer-cli-spec.md`](./writer-cli-spe
 
 ## Problem Statement
 
-The Writer app menu currently looks like this on macOS:
+The CodeWriter app menu currently looks like this on macOS:
 
 ```
-Writer
-  About Writer
+CodeWriter
+  About CodeWriter
   ─────
   Check for Updates…
   ─────
@@ -31,11 +31,11 @@ Writer
   ─────
   Services
   ─────
-  Hide Writer
+  Hide CodeWriter
   Hide Others
   Show All
   ─────
-  Quit Writer
+  Quit CodeWriter
 ```
 
 Two things go wrong here:
@@ -52,13 +52,13 @@ Two things go wrong here:
 
 ## Proposed Change
 
-Keep the CLI install action in the Writer app menu. Add a conventional macOS Preferences entry to the same menu. Tighten the CLI label and grouping so the menu reads cleanly.
+Keep the CLI install action in the CodeWriter app menu. Add a conventional macOS Preferences entry to the same menu. Tighten the CLI label and grouping so the menu reads cleanly.
 
 ### New menu structure
 
 ```
-Writer
-  About Writer
+CodeWriter
+  About CodeWriter
   ─────
   Check for Updates…
   ─────
@@ -67,11 +67,11 @@ Writer
   ─────
   Services
   ─────
-  Hide Writer
+  Hide CodeWriter
   Hide Others
   Show All
   ─────
-  Quit Writer
+  Quit CodeWriter
 ```
 
 Notes:
@@ -122,7 +122,7 @@ Backend (Rust) — only `lib.rs`; install/uninstall primitives are unchanged:
 
 - `apps/desktop/src-tauri/src/lib.rs`:
   - Update `CLI_MENU_INSTALL_LABEL` / `CLI_MENU_UNINSTALL_LABEL` to the new strings (`Install 'writer' Command Line Tool…` / `Uninstall 'writer' Command Line Tool…`).
-  - Add a new `Preferences…` menu item with `⌘,` accelerator and id `preferences.open`, inserted just before the CLI item in the `Writer` submenu builder (around `lib.rs:160-168`).
+  - Add a new `Preferences…` menu item with `⌘,` accelerator and id `preferences.open`, inserted just before the CLI item in the `CodeWriter` submenu builder (around `lib.rs:160-168`).
   - Add an event arm in `app.on_menu_event` (`lib.rs:213`) that emits `menu:open-preferences` to the focused window.
 - `apps/desktop/src-tauri/src/commands/shell_install.rs` — unchanged.
 
@@ -139,7 +139,7 @@ Tests:
 Docs:
 
 - `CHANGELOG.md` — note the relabel and the new Preferences menu entry under user-visible changes when shipped.
-- The Writer CLI spec ([`SPECs/writer-cli-spec.md`](./writer-cli-spec.md)) does not need an update; the menu item moves slot and gets a new label but its capability is unchanged.
+- The CodeWriter CLI spec ([`SPECs/writer-cli-spec.md`](./writer-cli-spec.md)) does not need an update; the menu item moves slot and gets a new label but its capability is unchanged.
 
 ## Open Questions
 
@@ -148,7 +148,7 @@ Docs:
 
 ## Acceptance Criteria
 
-- The Writer app menu on macOS contains, in order: `About Writer`, separator, `Check for Updates…`, separator, `Preferences…` (`⌘,`), `Install 'writer' Command Line Tool…`, separator, `Services`, …, `Quit Writer`.
+- The CodeWriter app menu on macOS contains, in order: `About CodeWriter`, separator, `Check for Updates…`, separator, `Preferences…` (`⌘,`), `Install 'writer' Command Line Tool…`, separator, `Services`, …, `Quit CodeWriter`.
 - `Preferences…` opens the existing Settings tab in the focused window. The keyboard shortcut `⌘,` does the same.
 - The CLI item's label is `Install 'writer' Command Line Tool…` when the symlink is missing, and `Uninstall 'writer' Command Line Tool…` when it is installed. Toggling continues to refresh the label correctly.
 - Clicking the CLI item runs the same install/uninstall flow as today, including the elevation prompt and success/error dialogs.

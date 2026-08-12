@@ -41,13 +41,7 @@ impl std::fmt::Display for OpenTargetError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NotFound(p) => write!(f, "path does not exist: {}", p.display()),
-            Self::Unsupported(p) => {
-                write!(
-                    f,
-                    "not a directory or supported Writer file: {}",
-                    p.display()
-                )
-            }
+            Self::Unsupported(p) => write!(f, "not a directory or supported file: {}", p.display()),
             Self::Io(err) => write!(f, "{err}"),
         }
     }
@@ -56,7 +50,7 @@ impl std::fmt::Display for OpenTargetError {
 impl std::error::Error for OpenTargetError {}
 
 /// Lenient variant used by drag-drop and RunEvent::Opened. Returns `None`
-/// for anything that isn't a directory or a supported Writer file, matching the
+/// for anything that isn't a directory or a supported file, matching the
 /// original `resolve_dropped_path` behavior.
 pub fn resolve_path(path: &Path) -> Option<PendingOpenPayload> {
     classify(path).ok()

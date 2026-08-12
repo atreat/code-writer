@@ -9,12 +9,14 @@ const tauriConfPath = fileURLToPath(
   new URL("../desktop/src-tauri/tauri.conf.json", import.meta.url),
 );
 const tauriConf = JSON.parse(readFileSync(tauriConfPath, "utf-8")) as {
+  productName: string;
   version: string;
 };
 
 const RELEASE_REPO = "joelbqz/writer-computer";
+const PRODUCT_NAME = tauriConf.productName;
 const VERSION = tauriConf.version;
-const DMG_URL = `https://github.com/${RELEASE_REPO}/releases/download/v${VERSION}/Writer_${VERSION}_aarch64.dmg`;
+const DMG_URL = `https://github.com/${RELEASE_REPO}/releases/download/v${VERSION}/${PRODUCT_NAME}_${VERSION}_aarch64.dmg`;
 const RELEASES_URL = `https://github.com/${RELEASE_REPO}/releases/tag/v${VERSION}`;
 const REPO_URL = "https://github.com/joelbqz/writer-computer";
 
