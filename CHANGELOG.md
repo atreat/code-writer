@@ -2,6 +2,7 @@
 
 ## 2026-08-12
 
+- Make zoomed image previews navigable with natural two-finger trackpad scrolling. Horizontal and vertical scroll now pan the bounded image canvas, while pinch/modifier-wheel zoom remains distinct and fit-scale scrolling stays centered.
 - Add read-only audio and video preview tabs for common AAC, AIFF, FLAC, M4A, MP3, OGG/OGA, OPUS, WAV, AVI, M4V, MKV, MOV, MP4, OGV, and WebM files. Media appears in workspace navigation, search, direct-open, drag/drop, Finder open, picker, and standalone flows without copying bytes through IPC; native WebKit controls handle playback, seeking, volume, and video fullscreen where the installed codec supports them.
 
 ## 2026-08-11

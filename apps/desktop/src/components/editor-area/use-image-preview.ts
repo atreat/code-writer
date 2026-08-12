@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "react";
 import {
+  clampImagePan,
   fitImageTransform,
+  getImagePanBounds,
   IMAGE_ZOOM_STEP,
+  panImageBy,
   zoomImageAt,
   type ImagePreviewTransform,
 } from "./image-preview-logic";
@@ -46,17 +49,23 @@ export function useImagePreview(reloadVersion: number) {
     );
   }, [imageSize, viewportSize]);
 
-  const zoomAt = useCallback((clientX: number, clientY: number, factor: number) => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    const rect = viewport.getBoundingClientRect();
-    const localX = clientX - rect.left;
-    const localY = clientY - rect.top;
-    interactionRef.current = true;
-    setTransform((current) =>
-      zoomImageAt(current, localX, localY, rect.width, rect.height, factor),
-    );
-  }, []);
+  const zoomAt = useCallback(
+    (clientX: number, clientY: number, factor: number) => {
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      const rect = viewport.getBoundingClientRect();
+      const localX = clientX - rect.left;
+      const localY = clientY - rect.top;
+      interactionRef.current = true;
+      setTransform((current) => {
+        const next = zoomImageAt(current, localX, localY, rect.width, rect.height, factor);
+        return imageSize
+          ? clampImagePan(next, imageSize.width, imageSize.height, rect.width, rect.height)
+          : next;
+      });
+    },
+    [imageSize],
+  );
 
   const zoomAtCenter = useCallback(
     (factor: number) => {
@@ -94,9 +103,22 @@ export function useImagePreview(reloadVersion: number) {
   }, []);
 
   useEffect(() => {
-    if (!imageSize || interactionRef.current) return;
-    setTransform(
-      fitImageTransform(imageSize.width, imageSize.height, viewportSize.width, viewportSize.height),
+    if (!imageSize) return;
+    setTransform((current) =>
+      interactionRef.current
+        ? clampImagePan(
+            current,
+            imageSize.width,
+            imageSize.height,
+            viewportSize.width,
+            viewportSize.height,
+          )
+        : fitImageTransform(
+            imageSize.width,
+            imageSize.height,
+            viewportSize.width,
+            viewportSize.height,
+          ),
     );
   }, [imageSize, viewportSize]);
 
@@ -119,6 +141,31 @@ export function useImagePreview(reloadVersion: number) {
     let gestureStartScale: number | null = null;
     let gestureStartTransform: ImagePreviewTransform | null = null;
 
+    const panBy = (deltaX: number, deltaY: number) => {
+      if (!imageSize || (deltaX === 0 && deltaY === 0)) return;
+      const rect = viewport.getBoundingClientRect();
+      const { maxPanX, maxPanY } = getImagePanBounds(
+        imageSize.width,
+        imageSize.height,
+        transformRef.current.zoom,
+        rect.width,
+        rect.height,
+      );
+      if (maxPanX === 0 && maxPanY === 0) return;
+      interactionRef.current = true;
+      setTransform((current) =>
+        panImageBy(
+          current,
+          deltaX,
+          deltaY,
+          imageSize.width,
+          imageSize.height,
+          rect.width,
+          rect.height,
+        ),
+      );
+    };
+
     const isControlTarget = (target: EventTarget | null) =>
       target instanceof Element && target.closest("[data-image-preview-controls]") !== null;
 
@@ -138,11 +185,22 @@ export function useImagePreview(reloadVersion: number) {
 
     const onPointerMove = (event: PointerEvent) => {
       if (dragPointerId !== event.pointerId) return;
-      setTransform((current) => ({
-        ...current,
-        panX: dragStartPanX + event.clientX - dragStartX,
-        panY: dragStartPanY + event.clientY - dragStartY,
-      }));
+      const rect = viewport.getBoundingClientRect();
+      setTransform((current) =>
+        imageSize
+          ? clampImagePan(
+              {
+                ...current,
+                panX: dragStartPanX + event.clientX - dragStartX,
+                panY: dragStartPanY + event.clientY - dragStartY,
+              },
+              imageSize.width,
+              imageSize.height,
+              rect.width,
+              rect.height,
+            )
+          : current,
+      );
     };
 
     const endDrag = (event: PointerEvent) => {
@@ -154,10 +212,25 @@ export function useImagePreview(reloadVersion: number) {
     };
 
     const onWheel = (event: WheelEvent) => {
-      if (!(event.metaKey || event.ctrlKey)) return;
+      if (event.metaKey || event.ctrlKey) {
+        event.preventDefault();
+        const sensitivity = event.ctrlKey && !event.metaKey ? 0.01 : 0.0015;
+        zoomAt(event.clientX, event.clientY, Math.exp(-event.deltaY * sensitivity));
+        return;
+      }
+
+      if (!imageSize || (event.deltaX === 0 && event.deltaY === 0)) return;
+      const rect = viewport.getBoundingClientRect();
+      const { maxPanX, maxPanY } = getImagePanBounds(
+        imageSize.width,
+        imageSize.height,
+        transformRef.current.zoom,
+        rect.width,
+        rect.height,
+      );
+      if (maxPanX === 0 && maxPanY === 0) return;
       event.preventDefault();
-      const sensitivity = event.ctrlKey && !event.metaKey ? 0.01 : 0.0015;
-      zoomAt(event.clientX, event.clientY, Math.exp(-event.deltaY * sensitivity));
+      panBy(-event.deltaX, -event.deltaY);
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -165,20 +238,16 @@ export function useImagePreview(reloadVersion: number) {
       let handled = true;
       switch (event.key) {
         case "ArrowUp":
-          interactionRef.current = true;
-          setTransform((current) => ({ ...current, panY: current.panY + 24 }));
+          panBy(0, 24);
           break;
         case "ArrowDown":
-          interactionRef.current = true;
-          setTransform((current) => ({ ...current, panY: current.panY - 24 }));
+          panBy(0, -24);
           break;
         case "ArrowLeft":
-          interactionRef.current = true;
-          setTransform((current) => ({ ...current, panX: current.panX + 24 }));
+          panBy(24, 0);
           break;
         case "ArrowRight":
-          interactionRef.current = true;
-          setTransform((current) => ({ ...current, panX: current.panX - 24 }));
+          panBy(-24, 0);
           break;
         case "+":
         case "=":
@@ -218,15 +287,18 @@ export function useImagePreview(reloadVersion: number) {
         return;
       const rect = viewport.getBoundingClientRect();
       interactionRef.current = true;
+      const next = zoomImageAt(
+        gestureStartTransform,
+        rect.width / 2,
+        rect.height / 2,
+        rect.width,
+        rect.height,
+        gesture.scale / gestureStartScale,
+      );
       setTransform(
-        zoomImageAt(
-          gestureStartTransform,
-          rect.width / 2,
-          rect.height / 2,
-          rect.width,
-          rect.height,
-          gesture.scale / gestureStartScale,
-        ),
+        imageSize
+          ? clampImagePan(next, imageSize.width, imageSize.height, rect.width, rect.height)
+          : next,
       );
       event.preventDefault();
     };
@@ -257,7 +329,7 @@ export function useImagePreview(reloadVersion: number) {
       viewport.removeEventListener("gesturechange", onGestureChange);
       viewport.removeEventListener("gestureend", onGestureEnd);
     };
-  }, [fitToViewport, zoomAt, zoomIn, zoomOut]);
+  }, [fitToViewport, imageSize, zoomAt, zoomIn, zoomOut]);
 
   return {
     viewportRef,

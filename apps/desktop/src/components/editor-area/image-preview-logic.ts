@@ -4,6 +4,11 @@ export interface ImagePreviewTransform {
   panY: number;
 }
 
+export interface ImagePanBounds {
+  maxPanX: number;
+  maxPanY: number;
+}
+
 export const IMAGE_ZOOM_MIN = 0.25;
 export const IMAGE_ZOOM_MAX = 4;
 export const IMAGE_ZOOM_STEP = 1.2;
@@ -11,6 +16,66 @@ export const IMAGE_FIT_MARGIN = 32;
 
 export function clampImageZoom(zoom: number): number {
   return Math.max(IMAGE_ZOOM_MIN, Math.min(IMAGE_ZOOM_MAX, zoom));
+}
+
+export function getImagePanBounds(
+  naturalWidth: number,
+  naturalHeight: number,
+  zoom: number,
+  viewportWidth: number,
+  viewportHeight: number,
+): ImagePanBounds {
+  return {
+    maxPanX: Math.max(0, (naturalWidth * zoom - viewportWidth) / 2),
+    maxPanY: Math.max(0, (naturalHeight * zoom - viewportHeight) / 2),
+  };
+}
+
+export function clampImagePan(
+  transform: ImagePreviewTransform,
+  naturalWidth: number,
+  naturalHeight: number,
+  viewportWidth: number,
+  viewportHeight: number,
+): ImagePreviewTransform {
+  const { maxPanX, maxPanY } = getImagePanBounds(
+    naturalWidth,
+    naturalHeight,
+    transform.zoom,
+    viewportWidth,
+    viewportHeight,
+  );
+
+  const clampPan = (value: number, max: number) =>
+    max === 0 ? 0 : Math.max(-max, Math.min(max, value));
+
+  return {
+    ...transform,
+    panX: clampPan(transform.panX, maxPanX),
+    panY: clampPan(transform.panY, maxPanY),
+  };
+}
+
+export function panImageBy(
+  transform: ImagePreviewTransform,
+  deltaX: number,
+  deltaY: number,
+  naturalWidth: number,
+  naturalHeight: number,
+  viewportWidth: number,
+  viewportHeight: number,
+): ImagePreviewTransform {
+  return clampImagePan(
+    {
+      ...transform,
+      panX: transform.panX + deltaX,
+      panY: transform.panY + deltaY,
+    },
+    naturalWidth,
+    naturalHeight,
+    viewportWidth,
+    viewportHeight,
+  );
 }
 
 export function fitImageTransform(

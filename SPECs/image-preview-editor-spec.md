@@ -45,11 +45,14 @@ text-file size/binary safeguards.
    load.
 4. Give the preview a bounded viewport and centered image stage. Controls:
    fit/reset, zoom out, zoom in, and a readable percentage. The stage supports
-   left-button pointer drag panning, modifier-wheel zoom, macOS trackpad pinch
-   zoom (WebKit's synthetic `Ctrl`-wheel path, with native gesture events as a
-   defensive fallback), and keyboard arrows/`+`/`-`/`0` when the viewport is
-   focused. Zoom should be anchored at the pointer for wheel/pinch and at the
-   viewport center for toolbar/keyboard commands.
+   left-button pointer drag panning, two-finger trackpad scrolling when the
+   image overflows, modifier-wheel zoom, macOS trackpad pinch zoom (WebKit's
+   synthetic `Ctrl`-wheel path, with native gesture events as a defensive
+   fallback), and keyboard arrows/`+`/`-`/`0` when the viewport is focused.
+   Scrolling follows native content semantics: a downward scroll moves the
+   image upward, horizontal scroll moves it sideways, and all pan modes clamp
+   to the image's visible overflow. Zoom should be anchored at the pointer for
+   wheel/pinch and at the viewport center for toolbar/keyboard commands.
 5. Keep zoom/pan local to the mounted tab, clamp zoom to a predictable range,
    fit once the image and viewport are measured, and preserve the image's
    intrinsic aspect ratio. Controls remain discoverable on focus and expose
@@ -80,7 +83,9 @@ diff and its behavior before adding more surface area:
   pointer pan, modifier-wheel zoom, pinch handling, and keyboard bindings.
 - Add pure interaction-math tests for fit, zoom anchoring, and clamping.
 - Critique the pane at initial load, very wide/tall images, tiny images, and
-  broken assets; fix layout or focus issues before integration polish.
+  broken assets; verify two-finger scroll only moves a zoomed image and that
+  pinch zoom remains distinct from scroll; fix layout or focus issues before
+  integration polish.
 
 ### Loop 3 — app integration
 
@@ -108,7 +113,9 @@ diff and its behavior before adding more surface area:
 - The image is centered and fit on first display, keeps its aspect ratio, and
   can be zoomed with controls, keyboard, modifier-wheel, and macOS pinch.
 - A zoomed image can be panned by dragging; zooming around the pointer does not
-  cause the image to jump unexpectedly; reset returns to fit and centered pan.
+  cause the image to jump unexpectedly; two-finger trackpad scrolling moves the
+  image naturally in both axes; pan is bounded to the image overflow; reset
+  returns to fit and centered pan.
 - The pane remains read-only, does not schedule text saves, and shows a useful
   error state for an unreadable asset.
 - External image changes refresh the displayed asset, and rename/delete/update

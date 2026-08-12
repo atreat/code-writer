@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vite-plus/test";
 import {
+  clampImagePan,
   clampImageZoom,
   fitImageTransform,
+  panImageBy,
   zoomImageAt,
 } from "../src/components/editor-area/image-preview-logic";
 
@@ -33,5 +35,33 @@ describe("image preview transform", () => {
 
     const saturated = { zoom: 4, panX: 12, panY: -8 };
     expect(zoomImageAt(saturated, 100, 100, 200, 200, 2)).toBe(saturated);
+  });
+
+  test("clamps panning to the visible overflow of the image", () => {
+    const transform = { zoom: 1, panX: 0, panY: 0 };
+
+    expect(panImageBy(transform, -180, -90, 1600, 900, 800, 600)).toEqual({
+      zoom: 1,
+      panX: -180,
+      panY: -90,
+    });
+    expect(panImageBy(transform, -1000, -1000, 1600, 900, 800, 600)).toEqual({
+      zoom: 1,
+      panX: -400,
+      panY: -150,
+    });
+  });
+
+  test("keeps fit-scale scrolling centered when the image has no overflow", () => {
+    const fit = fitImageTransform(1600, 900, 800, 600);
+    expect(panImageBy(fit, -240, -120, 1600, 900, 800, 600)).toEqual(fit);
+  });
+
+  test("clamps an anchored zoom back inside the image bounds", () => {
+    expect(clampImagePan({ zoom: 2, panX: 999, panY: -999 }, 400, 300, 800, 600)).toEqual({
+      zoom: 2,
+      panX: 0,
+      panY: 0,
+    });
   });
 });
