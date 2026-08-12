@@ -126,9 +126,35 @@
 }
 
 .image-preview-zoom {
-  min-width: 44px;
-  padding: 0 3px;
+  width: 48px;
+  padding: 0 2px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: text;
   text-align: center;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+  user-select: text;
+}
+
+.image-preview-zoom-field {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.image-preview-zoom-suffix {
+  padding-right: 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.image-preview-zoom:focus {
+  border-color: var(--focus-border);
+  outline: none;
+  background: var(--surface-subtle);
+  color: var(--text-primary);
 }

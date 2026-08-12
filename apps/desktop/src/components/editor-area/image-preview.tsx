@@ -1,5 +1,7 @@
+import { useEffect, useRef, useState } from "react";
 import { useFileSizeBytes, useReloadVersion } from "@/hooks/use-tabs";
 import { getFileName } from "@/lib/paths";
+import { clampImageZoom, parseZoomPercentInput } from "./image-preview-logic";
 import { resolveLocalAssetSrc } from "./image-src-resolver";
 import { useImagePreview } from "./use-image-preview";
 import "./image-preview.css";
@@ -15,12 +17,42 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatZoomPercent(zoom: number): string {
+  return Number((zoom * 100).toFixed(2)).toString();
+}
+
 export function ImagePreviewPane({ path, isActive }: ImagePreviewPaneProps) {
   const reloadVersion = useReloadVersion(path);
   const sizeBytes = useFileSizeBytes(path);
   const preview = useImagePreview(reloadVersion, isActive);
   const imageSrc = `${resolveLocalAssetSrc(path)}?reload=${reloadVersion}`;
   const filename = getFileName(path);
+  const [zoomInput, setZoomInput] = useState(() => formatZoomPercent(preview.transform.zoom));
+  const cancelZoomInputRef = useRef(false);
+
+  useEffect(() => {
+    setZoomInput(formatZoomPercent(preview.transform.zoom));
+  }, [preview.transform.zoom]);
+
+  const commitZoomInput = () => {
+    if (cancelZoomInputRef.current) {
+      cancelZoomInputRef.current = false;
+      return;
+    }
+
+    const percent = parseZoomPercentInput(zoomInput);
+    if (percent === null) {
+      setZoomInput(formatZoomPercent(preview.transform.zoom));
+      return;
+    }
+    preview.setZoomPercent(percent);
+    setZoomInput(formatZoomPercent(clampImageZoom(percent / 100)));
+  };
+
+  const applyControlAction = (action: () => void) => {
+    commitZoomInput();
+    action();
+  };
 
   return (
     <div
@@ -80,7 +112,7 @@ export function ImagePreviewPane({ path, isActive }: ImagePreviewPaneProps) {
           <button
             type="button"
             onMouseDown={(event) => event.preventDefault()}
-            onClick={preview.fitToViewport}
+            onClick={() => applyControlAction(preview.fitToViewport)}
             aria-label="Fit image to window"
           >
             <span aria-hidden="true">⟲</span>
@@ -88,21 +120,39 @@ export function ImagePreviewPane({ path, isActive }: ImagePreviewPaneProps) {
           <button
             type="button"
             onMouseDown={(event) => event.preventDefault()}
-            onClick={preview.zoomOut}
+            onClick={() => applyControlAction(preview.zoomOut)}
             aria-label="Zoom out"
           >
             <span aria-hidden="true">−</span>
           </button>
-          <span
-            className="image-preview-zoom"
-            aria-label={`${Math.round(preview.transform.zoom * 100)} percent zoom`}
-          >
-            {Math.round(preview.transform.zoom * 100)}%
-          </span>
+          <div className="image-preview-zoom-field">
+            <input
+              type="text"
+              inputMode="decimal"
+              className="image-preview-zoom"
+              aria-label="Zoom percentage"
+              value={zoomInput}
+              onChange={(event) => setZoomInput(event.target.value)}
+              onFocus={(event) => event.currentTarget.select()}
+              onBlur={commitZoomInput}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.currentTarget.blur();
+                } else if (event.key === "Escape") {
+                  cancelZoomInputRef.current = true;
+                  setZoomInput(formatZoomPercent(preview.transform.zoom));
+                  event.currentTarget.blur();
+                }
+              }}
+            />
+            <span className="image-preview-zoom-suffix" aria-hidden="true">
+              %
+            </span>
+          </div>
           <button
             type="button"
             onMouseDown={(event) => event.preventDefault()}
-            onClick={preview.zoomIn}
+            onClick={() => applyControlAction(preview.zoomIn)}
             aria-label="Zoom in"
           >
             <span aria-hidden="true">+</span>

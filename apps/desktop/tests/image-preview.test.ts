@@ -4,7 +4,9 @@ import {
   clampImageZoom,
   fitImageTransform,
   panImageBy,
+  parseZoomPercentInput,
   zoomImageAt,
+  zoomImageTo,
 } from "../src/components/editor-area/image-preview-logic";
 
 describe("image preview transform", () => {
@@ -35,6 +37,30 @@ describe("image preview transform", () => {
 
     const saturated = { zoom: 4, panX: 12, panY: -8 };
     expect(zoomImageAt(saturated, 100, 100, 200, 200, 2)).toBe(saturated);
+  });
+
+  test("parses precise zoom percentages and rejects incomplete input", () => {
+    expect(parseZoomPercentInput("28.5%")).toBe(28.5);
+    expect(parseZoomPercentInput(" 28.5 ")).toBe(28.5);
+    expect(parseZoomPercentInput("")).toBeNull();
+    expect(parseZoomPercentInput("  ")).toBeNull();
+    expect(parseZoomPercentInput("28abc")).toBeNull();
+  });
+
+  test("sets exact zoom around the viewport center", () => {
+    const initial = { zoom: 1, panX: 120, panY: -80 };
+    const next = zoomImageTo(initial, 1.285, 800, 600);
+
+    expect(next.zoom).toBe(1.285);
+    expect(next.panX).toBeCloseTo(120 * 1.285);
+    expect(next.panY).toBeCloseTo(-80 * 1.285);
+  });
+
+  test("clamps exact zoom requests to the existing bounds", () => {
+    const initial = { zoom: 1, panX: 0, panY: 0 };
+
+    expect(zoomImageTo(initial, 0.01, 800, 600).zoom).toBe(0.25);
+    expect(zoomImageTo(initial, 20, 800, 600).zoom).toBe(4);
   });
 
   test("clamps panning to the visible overflow of the image", () => {

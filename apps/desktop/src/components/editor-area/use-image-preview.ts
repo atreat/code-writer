@@ -6,6 +6,7 @@ import {
   IMAGE_ZOOM_STEP,
   panImageBy,
   zoomImageAt,
+  zoomImageTo,
   type ImagePreviewTransform,
 } from "./image-preview-logic";
 
@@ -83,6 +84,22 @@ export function useImagePreview(reloadVersion: number, isActive = true) {
 
   const zoomIn = useCallback(() => zoomAtCenter(IMAGE_ZOOM_STEP), [zoomAtCenter]);
   const zoomOut = useCallback(() => zoomAtCenter(1 / IMAGE_ZOOM_STEP), [zoomAtCenter]);
+
+  const setZoomPercent = useCallback(
+    (percent: number) => {
+      const viewport = viewportRef.current;
+      if (!viewport || !Number.isFinite(percent)) return;
+      const rect = viewport.getBoundingClientRect();
+      interactionRef.current = true;
+      setTransform((current) => {
+        const next = zoomImageTo(current, percent / 100, rect.width, rect.height);
+        return imageSize
+          ? clampImagePan(next, imageSize.width, imageSize.height, rect.width, rect.height)
+          : next;
+      });
+    },
+    [imageSize],
+  );
 
   const completeImageLoad = useCallback((image: HTMLImageElement) => {
     if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
@@ -251,6 +268,7 @@ export function useImagePreview(reloadVersion: number, isActive = true) {
     };
 
     const onWheel = (event: WheelEvent) => {
+      if (isControlTarget(event.target)) return;
       if (event.metaKey || event.ctrlKey) {
         event.preventDefault();
         const sensitivity = event.ctrlKey && !event.metaKey ? 0.01 : 0.0015;
@@ -309,6 +327,7 @@ export function useImagePreview(reloadVersion: number, isActive = true) {
     };
 
     const onGestureStart = (event: Event) => {
+      if (isControlTarget(event.target)) return;
       const gesture = event as GestureEventLike;
       if (typeof gesture.scale !== "number") return;
       gestureStartScale = gesture.scale;
@@ -317,6 +336,7 @@ export function useImagePreview(reloadVersion: number, isActive = true) {
     };
 
     const onGestureChange = (event: Event) => {
+      if (isControlTarget(event.target)) return;
       const gesture = event as GestureEventLike;
       if (
         typeof gesture.scale !== "number" ||
@@ -381,6 +401,7 @@ export function useImagePreview(reloadVersion: number, isActive = true) {
     fitToViewport,
     zoomIn,
     zoomOut,
+    setZoomPercent,
     handleImageLoad,
     handleImageError,
   };

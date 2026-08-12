@@ -14,6 +14,17 @@ export const IMAGE_ZOOM_MAX = 4;
 export const IMAGE_ZOOM_STEP = 1.2;
 export const IMAGE_FIT_MARGIN = 32;
 
+export function parseZoomPercentInput(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const normalized = trimmed.replace(/%\s*$/, "").trim();
+  if (!normalized) return null;
+
+  const percent = Number(normalized);
+  return Number.isFinite(percent) ? percent : null;
+}
+
 export function clampImageZoom(zoom: number): number {
   return Math.max(IMAGE_ZOOM_MIN, Math.min(IMAGE_ZOOM_MAX, zoom));
 }
@@ -114,4 +125,23 @@ export function zoomImageAt(
     panX: localX - viewportWidth / 2 - imageX * nextZoom,
     panY: localY - viewportHeight / 2 - imageY * nextZoom,
   };
+}
+
+export function zoomImageTo(
+  transform: ImagePreviewTransform,
+  zoom: number,
+  viewportWidth: number,
+  viewportHeight: number,
+): ImagePreviewTransform {
+  const nextZoom = clampImageZoom(zoom);
+  if (nextZoom === transform.zoom) return transform;
+
+  return zoomImageAt(
+    transform,
+    viewportWidth / 2,
+    viewportHeight / 2,
+    viewportWidth,
+    viewportHeight,
+    nextZoom / transform.zoom,
+  );
 }
