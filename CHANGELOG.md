@@ -3,6 +3,7 @@
 ## 2026-08-12
 
 - Fix the first image preview load getting stuck on “Loading image…” and keep image controls visible while hovering anywhere in the preview pane.
+- Move image preview controls below the full floating tab/window-drag chrome so they remain visible and clickable while moving into the control dock.
 - Add the Markdown editor's progressive top blur to source-code tabs so scrolling code fades beneath the floating tab row while tab labels remain clear and readable.
 - Keep source-code line 1 below the floating tab bar when a file is scrolled to the top by matching the editor's scroll inset to the tab-row chrome. Image previews now use the visible image's load event, crossfade the image in after loading, and release inactive preview elements after 60 seconds so long sessions do not retain every decoded image indefinitely.
 - Make zoomed image previews navigable with natural two-finger trackpad scrolling. Horizontal and vertical scroll now pan the bounded image canvas, while pinch/modifier-wheel zoom remains distinct and fit-scale scrolling stays centered.

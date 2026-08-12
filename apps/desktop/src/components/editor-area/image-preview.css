@@ -94,7 +94,9 @@
 }
 
 .image-preview-controls {
-  top: 12px;
+  /* The editor tabs and window drag region are app-level overlays. Keep this
+     dock below the full chrome band so it remains in the preview hit area. */
+  top: calc(var(--chrome-drag-height) + 12px);
   right: 14px;
   display: flex;
   align-items: center;
