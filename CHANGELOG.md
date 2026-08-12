@@ -2,6 +2,7 @@
 
 ## 2026-08-12
 
+- Keep source-code line 1 below the floating tab bar when a file is scrolled to the top by matching the editor's scroll inset to the tab-row chrome. Image previews now use the visible image's load event, crossfade the image in after loading, and release inactive preview elements after 60 seconds so long sessions do not retain every decoded image indefinitely.
 - Make zoomed image previews navigable with natural two-finger trackpad scrolling. Horizontal and vertical scroll now pan the bounded image canvas, while pinch/modifier-wheel zoom remains distinct and fit-scale scrolling stays centered.
 - Add read-only audio and video preview tabs for common AAC, AIFF, FLAC, M4A, MP3, OGG/OGA, OPUS, WAV, AVI, M4V, MKV, MOV, MP4, OGV, and WebM files. Media appears in workspace navigation, search, direct-open, drag/drop, Finder open, picker, and standalone flows without copying bytes through IPC; native WebKit controls handle playback, seeking, volume, and video fullscreen where the installed codec supports them.
 

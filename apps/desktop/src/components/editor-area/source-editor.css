@@ -1,3 +1,7 @@
+.source-editor-pane {
+  --source-editor-top-inset: calc(var(--chrome-control-height) + var(--chrome-control-padding) * 2);
+}
+
 .source-editor-pane .cm-editor {
   height: 100%;
   color: var(--text-secondary);
@@ -8,6 +12,8 @@
 .source-editor-pane .cm-editor .cm-scroller {
   overflow: auto !important;
   clip-path: none;
+  padding-block-start: var(--source-editor-top-inset);
+  scroll-padding-block-start: var(--source-editor-top-inset);
   font-family: var(--pm-code-font, "SF Mono", Menlo, Monaco, Consolas, monospace);
   font-size: 13px;
   line-height: 1.55;
@@ -19,7 +25,7 @@
   max-width: none;
   margin: 0;
   min-height: 100%;
-  padding: 24px 32px 40vh 0;
+  padding: 0 32px 40vh 0;
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;

@@ -21,6 +21,8 @@ interface ViewportSize {
 
 type PreviewStatus = "loading" | "ready" | "error";
 
+const IMAGE_ASSET_EVICTION_DELAY_MS = 60_000;
+
 interface GestureEventLike extends Event {
   scale?: number;
 }
@@ -29,15 +31,17 @@ function readSize(element: HTMLElement): ViewportSize {
   return { width: element.clientWidth, height: element.clientHeight };
 }
 
-export function useImagePreview(reloadVersion: number) {
+export function useImagePreview(reloadVersion: number, isActive = true) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const transformRef = useRef<ImagePreviewTransform>({ zoom: 1, panX: 0, panY: 0 });
   const interactionRef = useRef(false);
+  const loadFrameRef = useRef<number | null>(null);
   const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 0, height: 0 });
   const [imageSize, setImageSize] = useState<ImageSize | null>(null);
   const [transform, setTransform] = useState<ImagePreviewTransform>(transformRef.current);
   const [status, setStatus] = useState<PreviewStatus>("loading");
   const [isDragging, setIsDragging] = useState(false);
+  const [assetRetained, setAssetRetained] = useState(isActive);
 
   transformRef.current = transform;
 
@@ -83,13 +87,39 @@ export function useImagePreview(reloadVersion: number) {
   const handleImageLoad = useCallback((event: SyntheticEvent<HTMLImageElement>) => {
     const image = event.currentTarget;
     setImageSize({ width: image.naturalWidth, height: image.naturalHeight });
-    setStatus("ready");
+    setStatus("loading");
     interactionRef.current = false;
+    if (loadFrameRef.current !== null) cancelAnimationFrame(loadFrameRef.current);
+    loadFrameRef.current = requestAnimationFrame(() => {
+      loadFrameRef.current = null;
+      setStatus("ready");
+    });
   }, []);
 
   const handleImageError = useCallback(() => {
+    if (loadFrameRef.current !== null) {
+      cancelAnimationFrame(loadFrameRef.current);
+      loadFrameRef.current = null;
+    }
     setStatus("error");
   }, []);
+
+  useEffect(() => {
+    if (isActive) {
+      setAssetRetained(true);
+      return;
+    }
+
+    const evictionTimer = window.setTimeout(() => {
+      setAssetRetained(false);
+      setImageSize(null);
+      setStatus("loading");
+      setTransform({ zoom: 1, panX: 0, panY: 0 });
+      interactionRef.current = false;
+    }, IMAGE_ASSET_EVICTION_DELAY_MS);
+
+    return () => window.clearTimeout(evictionTimer);
+  }, [isActive]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -127,7 +157,17 @@ export function useImagePreview(reloadVersion: number) {
     setImageSize(null);
     interactionRef.current = false;
     setTransform({ zoom: 1, panX: 0, panY: 0 });
+    if (loadFrameRef.current !== null) {
+      cancelAnimationFrame(loadFrameRef.current);
+      loadFrameRef.current = null;
+    }
   }, [reloadVersion]);
+
+  useEffect(() => {
+    return () => {
+      if (loadFrameRef.current !== null) cancelAnimationFrame(loadFrameRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -335,6 +375,7 @@ export function useImagePreview(reloadVersion: number) {
     viewportRef,
     imageSize,
     status,
+    assetRetained,
     isDragging,
     transform,
     fitToViewport,

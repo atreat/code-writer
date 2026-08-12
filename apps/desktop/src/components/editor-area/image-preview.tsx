@@ -18,7 +18,7 @@ function formatBytes(bytes: number): string {
 export function ImagePreviewPane({ path, isActive }: ImagePreviewPaneProps) {
   const reloadVersion = useReloadVersion(path);
   const sizeBytes = useFileSizeBytes(path);
-  const preview = useImagePreview(reloadVersion);
+  const preview = useImagePreview(reloadVersion, isActive);
   const imageSrc = `${resolveLocalAssetSrc(path)}?reload=${reloadVersion}`;
   const filename = getFileName(path);
 
@@ -38,40 +38,34 @@ export function ImagePreviewPane({ path, isActive }: ImagePreviewPaneProps) {
         aria-label={`Image preview for ${filename}`}
         className={`image-preview-viewport${preview.isDragging ? " is-dragging" : ""}`}
       >
-        <img
-          className="image-preview-loader"
-          key={reloadVersion}
-          src={imageSrc}
-          alt=""
-          aria-hidden="true"
-          onLoad={preview.handleImageLoad}
-          onError={preview.handleImageError}
-        />
-        {preview.status === "loading" ? (
-          <div className="image-preview-message">Loading image…</div>
-        ) : preview.status === "error" ? (
-          <div className="image-preview-message">
-            <div className="font-medium text-[var(--text-secondary)]">Unable to preview image</div>
-            <div className="mt-1 text-[12px] text-[var(--text-muted)]">{filename}</div>
-          </div>
-        ) : preview.imageSize ? (
+        {preview.assetRetained ? (
           <div
-            className="image-preview-stage"
+            className={`image-preview-stage${preview.status === "ready" ? " is-loaded" : ""}`}
             style={{
               left: `calc(50% + ${preview.transform.panX}px)`,
               top: `calc(50% + ${preview.transform.panY}px)`,
-              width: preview.imageSize.width,
-              height: preview.imageSize.height,
+              ...(preview.imageSize
+                ? { width: preview.imageSize.width, height: preview.imageSize.height }
+                : {}),
               transform: `translate(-50%, -50%) scale(${preview.transform.zoom})`,
             }}
           >
             <img
+              key={reloadVersion}
               src={imageSrc}
               alt={filename}
               draggable={false}
               onLoad={preview.handleImageLoad}
               onError={preview.handleImageError}
             />
+          </div>
+        ) : null}
+        {preview.status === "loading" ? (
+          <div className="image-preview-message">Loading image…</div>
+        ) : preview.status === "error" ? (
+          <div className="image-preview-message">
+            <div className="font-medium text-[var(--text-secondary)]">Unable to preview image</div>
+            <div className="mt-1 text-[12px] text-[var(--text-muted)]">{filename}</div>
           </div>
         ) : null}
 

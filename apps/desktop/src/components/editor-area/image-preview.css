@@ -20,25 +20,22 @@
 
 .image-preview-stage {
   position: absolute;
+  opacity: 0;
   transform-origin: center;
-  will-change: transform;
+  transition: opacity 180ms ease-out;
+  will-change: opacity, transform;
+}
+
+.image-preview-stage.is-loaded {
+  opacity: 1;
 }
 
 .image-preview-stage img {
   display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: fill;
+  width: auto;
+  height: auto;
   pointer-events: none;
   user-select: none;
-}
-
-.image-preview-loader {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
 }
 
 .image-preview-message {
