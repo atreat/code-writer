@@ -52,6 +52,7 @@ export function ImagePreviewPane({ path, isActive }: ImagePreviewPaneProps) {
           >
             <img
               key={reloadVersion}
+              ref={preview.handleImageRef}
               src={imageSrc}
               alt={filename}
               draggable={false}

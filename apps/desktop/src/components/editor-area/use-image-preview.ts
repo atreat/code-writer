@@ -33,9 +33,9 @@ function readSize(element: HTMLElement): ViewportSize {
 
 export function useImagePreview(reloadVersion: number, isActive = true) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
   const transformRef = useRef<ImagePreviewTransform>({ zoom: 1, panX: 0, panY: 0 });
   const interactionRef = useRef(false);
-  const loadFrameRef = useRef<number | null>(null);
   const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 0, height: 0 });
   const [imageSize, setImageSize] = useState<ImageSize | null>(null);
   const [transform, setTransform] = useState<ImagePreviewTransform>(transformRef.current);
@@ -84,24 +84,26 @@ export function useImagePreview(reloadVersion: number, isActive = true) {
   const zoomIn = useCallback(() => zoomAtCenter(IMAGE_ZOOM_STEP), [zoomAtCenter]);
   const zoomOut = useCallback(() => zoomAtCenter(1 / IMAGE_ZOOM_STEP), [zoomAtCenter]);
 
-  const handleImageLoad = useCallback((event: SyntheticEvent<HTMLImageElement>) => {
-    const image = event.currentTarget;
+  const completeImageLoad = useCallback((image: HTMLImageElement) => {
+    if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
     setImageSize({ width: image.naturalWidth, height: image.naturalHeight });
-    setStatus("loading");
+    setStatus("ready");
     interactionRef.current = false;
-    if (loadFrameRef.current !== null) cancelAnimationFrame(loadFrameRef.current);
-    loadFrameRef.current = requestAnimationFrame(() => {
-      loadFrameRef.current = null;
-      setStatus("ready");
-    });
   }, []);
 
+  const handleImageLoad = useCallback(
+    (event: SyntheticEvent<HTMLImageElement>) => {
+      completeImageLoad(event.currentTarget);
+    },
+    [completeImageLoad],
+  );
+
   const handleImageError = useCallback(() => {
-    if (loadFrameRef.current !== null) {
-      cancelAnimationFrame(loadFrameRef.current);
-      loadFrameRef.current = null;
-    }
     setStatus("error");
+  }, []);
+
+  const handleImageRef = useCallback((image: HTMLImageElement | null) => {
+    imageRef.current = image;
   }, []);
 
   useEffect(() => {
@@ -157,17 +159,14 @@ export function useImagePreview(reloadVersion: number, isActive = true) {
     setImageSize(null);
     interactionRef.current = false;
     setTransform({ zoom: 1, panX: 0, panY: 0 });
-    if (loadFrameRef.current !== null) {
-      cancelAnimationFrame(loadFrameRef.current);
-      loadFrameRef.current = null;
-    }
   }, [reloadVersion]);
 
   useEffect(() => {
-    return () => {
-      if (loadFrameRef.current !== null) cancelAnimationFrame(loadFrameRef.current);
-    };
-  }, []);
+    const image = imageRef.current;
+    if (!assetRetained || !image || !image.complete) return;
+    if (image.naturalWidth > 0 && image.naturalHeight > 0) completeImageLoad(image);
+    else if (image.currentSrc) handleImageError();
+  }, [assetRetained, completeImageLoad, handleImageError, reloadVersion]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -373,6 +372,7 @@ export function useImagePreview(reloadVersion: number, isActive = true) {
 
   return {
     viewportRef,
+    handleImageRef,
     imageSize,
     status,
     assetRetained,

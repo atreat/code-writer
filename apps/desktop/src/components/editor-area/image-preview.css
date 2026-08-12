@@ -78,6 +78,12 @@
   pointer-events: auto;
 }
 
+.image-preview-pane:hover .image-preview-controls,
+.image-preview-pane:focus-within .image-preview-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .image-preview-info {
   bottom: 12px;
   left: 14px;
