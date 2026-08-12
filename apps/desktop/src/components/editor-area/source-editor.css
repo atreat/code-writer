@@ -1,5 +1,7 @@
 .source-editor-pane {
-  --source-editor-top-inset: calc(var(--chrome-control-height) + var(--chrome-control-padding) * 2);
+  /* Keep the first source line below the full blur field, not just below the
+     tab-row controls layered above it. */
+  --source-editor-top-inset: var(--editor-progressive-blur-height);
 }
 
 .source-editor-pane .cm-editor {

@@ -102,6 +102,7 @@
   --chrome-control-height: 32px;
   --chrome-control-padding: 12px;
   --chrome-drag-height: 72px;
+  --editor-progressive-blur-height: 120px;
   --writer-editor-max-width: 734px;
   --writer-editor-side-padding: clamp(1.5rem, 4vw, 4rem);
   --writer-editor-outer-width: calc(

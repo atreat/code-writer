@@ -1,4 +1,5 @@
 import { useSourceEditor } from "./use-source-editor";
+import { ProgressiveBlur } from "./editor-scroll-container";
 import "./source-editor.css";
 
 interface SourceEditorProps {
@@ -27,6 +28,7 @@ export function SourceEditorPane({ path, isActive }: SourceEditorPaneProps) {
       }
     >
       <SourceEditor filePath={path} autoFocus={isActive} />
+      <ProgressiveBlur position="top" />
     </div>
   );
 }

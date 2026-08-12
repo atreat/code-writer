@@ -11,7 +11,7 @@ const FADE_MASK = `${FADE_MASK_VERTICAL}, ${FADE_MASK_GUTTER}`;
 export const EDITOR_SAFE_SCROLL_MARGIN = FADE_DISTANCE + 20;
 export const EDITOR_SCROLLBAR_GUTTER = SCROLLBAR_GUTTER;
 
-function ProgressiveBlur({ position }: { position: "top" | "bottom" }) {
+export function ProgressiveBlur({ position }: { position: "top" | "bottom" }) {
   const isTop = position === "top";
 
   const topFade = `linear-gradient(to bottom, black 40%, transparent 80%)`;
@@ -19,8 +19,9 @@ function ProgressiveBlur({ position }: { position: "top" | "bottom" }) {
   // Static styles below mirror FADE_DISTANCE (120) and SCROLLBAR_GUTTER (18px).
   return (
     <div
-      className="pointer-events-none absolute z-10 h-[120px] left-[18px] right-[18px] [backdrop-filter:blur(3px)] [-webkit-backdrop-filter:blur(3px)]"
+      className="pointer-events-none absolute z-10 left-[18px] right-[18px] [backdrop-filter:blur(3px)] [-webkit-backdrop-filter:blur(3px)]"
       style={{
+        height: "var(--editor-progressive-blur-height)",
         [isTop ? "top" : "bottom"]: 0,
         maskImage: isTop ? topFade : bottomFade,
         WebkitMaskImage: isTop ? topFade : bottomFade,
