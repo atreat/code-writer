@@ -3,6 +3,8 @@ export type WorkspaceEntryKind =
   | "markdown"
   | "sourceText"
   | "image"
+  | "audio"
+  | "video"
   | "unsupported"
   | "tooLarge"
   | "binary";
@@ -19,6 +21,21 @@ export const IMAGE_FILE_EXTENSIONS = [
   "tiff",
   "avif",
 ] as const;
+
+export const AUDIO_FILE_EXTENSIONS = [
+  "aac",
+  "aif",
+  "aiff",
+  "flac",
+  "m4a",
+  "mp3",
+  "oga",
+  "ogg",
+  "opus",
+  "wav",
+] as const;
+
+export const VIDEO_FILE_EXTENSIONS = ["avi", "m4v", "mkv", "mov", "mp4", "ogv", "webm"] as const;
 export type LineEnding = "lf" | "crlf" | "mixed" | "none";
 
 export interface DirEntry {
@@ -50,7 +67,11 @@ export interface WriteResult {
 }
 
 export function isOpenableFileKind(kind: WorkspaceEntryKind): boolean {
-  return kind === "markdown" || kind === "sourceText" || kind === "image";
+  return kind === "markdown" || kind === "sourceText" || isMediaFileKind(kind);
+}
+
+export function isMediaFileKind(kind: WorkspaceEntryKind): boolean {
+  return kind === "image" || kind === "audio" || kind === "video";
 }
 
 export interface WorkspaceInfo {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-12
+
+- Add read-only audio and video preview tabs for common AAC, AIFF, FLAC, M4A, MP3, OGG/OGA, OPUS, WAV, AVI, M4V, MKV, MOV, MP4, OGV, and WebM files. Media appears in workspace navigation, search, direct-open, drag/drop, Finder open, picker, and standalone flows without copying bytes through IPC; native WebKit controls handle playback, seeking, volume, and video fullscreen where the installed codec supports them.
+
 ## 2026-08-11
 
 - Add read-only image preview tabs for PNG, JPEG, GIF, WebP, SVG, BMP, TIFF, and AVIF files. Images now appear in workspace navigation, recents, search, direct-open, drag/drop, and Finder open flows without copying their bytes through IPC. The preview fits images to the window, supports pointer pan, anchored zoom controls, keyboard zoom/pan, modifier-wheel zoom, and macOS trackpad pinch zoom, with a reset control and external-change refresh.

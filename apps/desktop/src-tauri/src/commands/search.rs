@@ -342,6 +342,30 @@ mod tests {
     }
 
     #[test]
+    fn test_index_workspace_includes_audio_and_video_files() {
+        let dir = setup_workspace();
+        fs::write(dir.path().join("voice.mp3"), [0, 1, 2, 3]).unwrap();
+        fs::write(dir.path().join("clip.mp4"), [0, 1, 2, 3]).unwrap();
+
+        let (index, _dirs) = index_workspace_test(dir.path());
+
+        assert_eq!(
+            index
+                .iter()
+                .find(|file| file.name == "voice.mp3")
+                .map(|file| file.kind),
+            Some(crate::commands::fs::WorkspaceEntryKind::Audio)
+        );
+        assert_eq!(
+            index
+                .iter()
+                .find(|file| file.name == "clip.mp4")
+                .map(|file| file.kind),
+            Some(crate::commands::fs::WorkspaceEntryKind::Video)
+        );
+    }
+
+    #[test]
     fn test_index_workspace_ignores_hidden() {
         let dir = setup_workspace();
         let (index, _dirs) = index_workspace_test(dir.path());

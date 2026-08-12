@@ -22,6 +22,9 @@ const SourceEditorPane = lazy(() =>
 const ImagePreviewPane = lazy(() =>
   import("./image-preview").then((module) => ({ default: module.ImagePreviewPane })),
 );
+const MediaPreviewPane = lazy(() =>
+  import("./media-preview").then((module) => ({ default: module.MediaPreviewPane })),
+);
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
@@ -172,6 +175,27 @@ export const EditorPane = memo(function EditorPane({ path, isActive }: EditorPan
       >
         <ExternalConflictBanner path={path} />
         <ImagePreviewPane path={path} isActive={isActive} />
+      </Suspense>
+    );
+  }
+
+  if (fileKind === "audio" || fileKind === "video") {
+    return (
+      <Suspense
+        fallback={
+          <div
+            className={
+              isActive ? "relative z-10 h-full" : "absolute inset-0 invisible pointer-events-none"
+            }
+          >
+            <div className="flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]">
+              <AsciiSpinner />
+            </div>
+          </div>
+        }
+      >
+        <ExternalConflictBanner path={path} />
+        <MediaPreviewPane path={path} kind={fileKind} isActive={isActive} />
       </Suspense>
     );
   }

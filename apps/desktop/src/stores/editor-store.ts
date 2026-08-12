@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import {
+  AUDIO_FILE_EXTENSIONS,
   IMAGE_FILE_EXTENSIONS,
+  isMediaFileKind,
+  VIDEO_FILE_EXTENSIONS,
   type FileContent,
   type LineEnding,
   type WorkspaceEntryKind,
@@ -156,6 +159,10 @@ function fallbackKindForPath(path: string): WorkspaceEntryKind {
   if (extension === "md" || extension === "mdx" || extension === "markdown") return "markdown";
   if (IMAGE_FILE_EXTENSIONS.includes(extension as (typeof IMAGE_FILE_EXTENSIONS)[number]))
     return "image";
+  if (AUDIO_FILE_EXTENSIONS.includes(extension as (typeof AUDIO_FILE_EXTENSIONS)[number]))
+    return "audio";
+  if (VIDEO_FILE_EXTENSIONS.includes(extension as (typeof VIDEO_FILE_EXTENSIONS)[number]))
+    return "video";
   return "sourceText";
 }
 
@@ -207,7 +214,7 @@ function hydrateLoadedFile(path: string, raw: FileContent, base: OpenFile): Open
   const kind = raw.kind ?? fallbackKindForPath(path);
   const language = raw.language ?? (kind === "markdown" ? "markdown" : null);
 
-  if (kind === "image") {
+  if (isMediaFileKind(kind)) {
     return {
       ...base,
       path,
@@ -1396,7 +1403,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           reloadVersion: file.reloadVersion + 1,
           sizeBytes: payload.sizeBytes,
         });
-      } else if (file.kind === "image") {
+      } else if (isMediaFileKind(file.kind)) {
         files.set(path, {
           ...file,
           diskModifiedAt: payload.modifiedAt,

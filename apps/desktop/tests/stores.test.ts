@@ -306,6 +306,57 @@ describe("editor-store", () => {
     expect(file?.sizeBytes).toBe(4096);
   });
 
+  test("openFile hydrates audio and video metadata as read-only media", async () => {
+    mockedInvoke
+      .mockResolvedValueOnce({
+        path: "/test/voice.mp3",
+        content: "",
+        modified_at: 1000,
+        kind: "audio",
+        language: null,
+        size_bytes: 4096,
+        line_ending: "none",
+        is_read_only: true,
+      })
+      .mockResolvedValueOnce({
+        path: "/test/clip.mp4",
+        content: "",
+        modified_at: 1000,
+        kind: "video",
+        language: null,
+        size_bytes: 8192,
+        line_ending: "none",
+        is_read_only: true,
+      });
+
+    await useEditorStore.getState().openFile("/test/voice.mp3");
+    await useEditorStore.getState().openFileInNewTab("/test/clip.mp4");
+
+    const audio = useEditorStore.getState().openFiles.get("/test/voice.mp3");
+    const video = useEditorStore.getState().openFiles.get("/test/clip.mp4");
+    expect(audio).toMatchObject({ kind: "audio", content: "", sizeBytes: 4096, isReadOnly: true });
+    expect(video).toMatchObject({ kind: "video", content: "", sizeBytes: 8192, isReadOnly: true });
+
+    useEditorStore.getState().updateContent("/test/clip.mp4", "should be ignored");
+    expect(useEditorStore.getState().openFiles.get("/test/clip.mp4")?.isDirty).toBe(false);
+
+    useEditorStore.getState().reloadFromDisk("/test/clip.mp4", {
+      path: "/test/clip.mp4",
+      content: "",
+      modified_at: 1001,
+      kind: "video",
+      language: null,
+      size_bytes: 16384,
+      line_ending: "none",
+      is_read_only: true,
+    });
+
+    expect(useEditorStore.getState().openFiles.get("/test/clip.mp4")).toMatchObject({
+      reloadVersion: 1,
+      sizeBytes: 16384,
+    });
+  });
+
   test("updateFrontmatter(path, null) unmounts the frontmatter panel, dirties the file, and re-infers title", async () => {
     mockedInvoke.mockResolvedValue({
       path: "/test/file.md",

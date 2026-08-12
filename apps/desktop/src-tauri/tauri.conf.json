@@ -58,6 +58,16 @@
         "ext": ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "tif", "tiff", "avif"],
         "mimeType": "image/png",
         "role": "Viewer"
+      },
+      {
+        "ext": ["aac", "aif", "aiff", "flac", "m4a", "mp3", "oga", "ogg", "opus", "wav"],
+        "mimeType": "audio/mpeg",
+        "role": "Viewer"
+      },
+      {
+        "ext": ["avi", "m4v", "mkv", "mov", "mp4", "ogv", "webm"],
+        "mimeType": "video/mp4",
+        "role": "Viewer"
       }
     ],
     "icon": [

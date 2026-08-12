@@ -2,8 +2,12 @@ import { EditorView, ViewPlugin } from "@codemirror/view";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { decodeLinkPath, getParentDir, normalizeMarkdownDestination } from "@/lib/paths";
 
-export function resolveLocalImageSrc(path: string): string {
+export function resolveLocalAssetSrc(path: string): string {
   return convertFileSrc(path);
+}
+
+export function resolveLocalImageSrc(path: string): string {
+  return resolveLocalAssetSrc(path);
 }
 
 function resolveImgSrc(img: HTMLImageElement, markdownDir: string) {
@@ -20,7 +24,7 @@ function resolveImgSrc(img: HTMLImageElement, markdownDir: string) {
     return;
   const localSrc = decodeLinkPath(src);
   const absolute = localSrc.startsWith("/") ? localSrc : `${markdownDir}/${localSrc}`;
-  img.src = resolveLocalImageSrc(absolute);
+  img.src = resolveLocalAssetSrc(absolute);
 }
 
 export function imageSrcResolver(getActivePath: () => string | null) {

@@ -1,6 +1,6 @@
 import { useFileSizeBytes, useReloadVersion } from "@/hooks/use-tabs";
 import { getFileName } from "@/lib/paths";
-import { resolveLocalImageSrc } from "./image-src-resolver";
+import { resolveLocalAssetSrc } from "./image-src-resolver";
 import { useImagePreview } from "./use-image-preview";
 import "./image-preview.css";
 
@@ -19,7 +19,7 @@ export function ImagePreviewPane({ path, isActive }: ImagePreviewPaneProps) {
   const reloadVersion = useReloadVersion(path);
   const sizeBytes = useFileSizeBytes(path);
   const preview = useImagePreview(reloadVersion);
-  const imageSrc = `${resolveLocalImageSrc(path)}?reload=${reloadVersion}`;
+  const imageSrc = `${resolveLocalAssetSrc(path)}?reload=${reloadVersion}`;
   const filename = getFileName(path);
 
   return (

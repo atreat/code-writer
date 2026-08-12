@@ -16,6 +16,8 @@ pub enum WorkspaceEntryKind {
     Markdown,
     SourceText,
     Image,
+    Audio,
+    Video,
     Unsupported,
     TooLarge,
     Binary,
@@ -275,6 +277,20 @@ pub(crate) fn classify_file(path: &Path) -> Option<(WorkspaceEntryKind, Option<&
         return Some((WorkspaceEntryKind::Image, None));
     }
 
+    if matches!(
+        ext.as_deref(),
+        Some("aac" | "aif" | "aiff" | "flac" | "m4a" | "mp3" | "oga" | "ogg" | "opus" | "wav")
+    ) {
+        return Some((WorkspaceEntryKind::Audio, None));
+    }
+
+    if matches!(
+        ext.as_deref(),
+        Some("avi" | "m4v" | "mkv" | "mov" | "mp4" | "ogv" | "webm")
+    ) {
+        return Some((WorkspaceEntryKind::Video, None));
+    }
+
     if matches!(ext.as_deref(), Some("md" | "mdx" | "markdown")) {
         return Some((WorkspaceEntryKind::Markdown, Some("markdown")));
     }
@@ -307,6 +323,13 @@ pub(crate) fn classify_file(path: &Path) -> Option<(WorkspaceEntryKind, Option<&
     };
 
     language.map(|language| (WorkspaceEntryKind::SourceText, Some(language)))
+}
+
+pub(crate) fn is_media_kind(kind: WorkspaceEntryKind) -> bool {
+    matches!(
+        kind,
+        WorkspaceEntryKind::Image | WorkspaceEntryKind::Audio | WorkspaceEntryKind::Video
+    )
 }
 
 pub(crate) fn is_visible_file(path: &Path) -> bool {
@@ -471,7 +494,7 @@ pub fn read_file_impl(path: &str) -> Result<FileContent, AppError> {
             file_path.to_string_lossy()
         ))
     })?;
-    if kind == WorkspaceEntryKind::Image {
+    if is_media_kind(kind) {
         return Ok(FileContent {
             path: path.to_string(),
             content: String::new(),
@@ -527,6 +550,15 @@ pub fn write_file_impl(
 ) -> Result<WriteResult, AppError> {
     let file_path = PathBuf::from(path);
     let original_metadata = fs::metadata(&file_path)?;
+
+    if classify_file(&file_path)
+        .map(|(kind, _)| is_media_kind(kind))
+        .unwrap_or(false)
+    {
+        return Err(AppError::Unsupported(format!(
+            "Cannot write read-only media file: {path}"
+        )));
+    }
 
     if let Some(expected) = expected_modified_at {
         let current = modified_time(&file_path);
@@ -1075,6 +1107,50 @@ mod tests {
         assert_eq!(entry.map(|entry| entry.is_markdown), Some(false));
     }
 
+    #[test]
+    fn test_read_directory_includes_audio_and_video_files() {
+        let dir = setup_test_dir();
+        fs::write(dir.path().join("voice.M4A"), [0, 1, 2, 3]).unwrap();
+        fs::write(dir.path().join("clip.MP4"), [0, 1, 2, 3]).unwrap();
+
+        let result = read_directory_impl(&dir.path().to_string_lossy(), None).unwrap();
+
+        assert_eq!(
+            result
+                .iter()
+                .find(|entry| entry.name == "voice.M4A")
+                .map(|entry| entry.kind),
+            Some(WorkspaceEntryKind::Audio)
+        );
+        assert_eq!(
+            result
+                .iter()
+                .find(|entry| entry.name == "clip.MP4")
+                .map(|entry| entry.kind),
+            Some(WorkspaceEntryKind::Video)
+        );
+    }
+
+    #[test]
+    fn test_read_media_returns_metadata_without_decoding_bytes() {
+        let dir = TempDir::new().unwrap();
+        let files = [
+            ("voice.flac", WorkspaceEntryKind::Audio),
+            ("clip.mov", WorkspaceEntryKind::Video),
+        ];
+
+        for (name, expected_kind) in files {
+            let path = dir.path().join(name);
+            fs::write(&path, [0, 159, 146, 150]).unwrap();
+
+            let result = read_file_impl(&path.to_string_lossy()).unwrap();
+            assert_eq!(result.kind, expected_kind);
+            assert_eq!(result.content, "");
+            assert_eq!(result.line_ending, LineEnding::None);
+            assert!(!result.is_read_only);
+        }
+    }
+
     fn indexed_file(root: &Path, name: &str, modified_at: u64) -> crate::state::IndexedFile {
         let path = root.join(name);
         crate::state::IndexedFile {
@@ -1270,6 +1346,21 @@ mod tests {
 
         let content = fs::read_to_string(&path).unwrap();
         assert_eq!(content, "new content");
+    }
+
+    #[test]
+    fn test_write_file_rejects_media_files() {
+        let dir = TempDir::new().unwrap();
+
+        for name in ["cover.png", "voice.mp3", "clip.mp4"] {
+            let path = dir.path().join(name);
+            fs::write(&path, [0, 1, 2, 3]).unwrap();
+
+            let result = write_file_impl(&path.to_string_lossy(), "not media", None, None);
+
+            assert!(matches!(result, Err(AppError::Unsupported(_))));
+            assert_eq!(fs::read(&path).unwrap(), [0, 1, 2, 3]);
+        }
     }
 
     #[test]

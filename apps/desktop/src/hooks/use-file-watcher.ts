@@ -4,6 +4,7 @@ import { useWorkspaceStore } from "@/stores/workspace-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import * as editorApi from "./editor-api";
 import * as tauri from "@/lib/tauri";
+import { isMediaFileKind } from "@/types/fs";
 import { cancelSave, isSaveInFlight } from "@/lib/save";
 import { isWorkspaceEventCurrent, type WorkspaceIdentity } from "@/lib/workspace-events";
 
@@ -43,11 +44,11 @@ export function useFileWatcher() {
       void tauri.readFile(path).then((content) => {
         const latest = editorApi.getOpenFiles().get(path);
         if (!latest) return;
-        // Image content is intentionally not read through IPC, so metadata can
+        // Media content is intentionally not read through IPC, so metadata can
         // have the same second/size after an in-place replacement. The watcher
-        // event is already the change signal; reload the asset on every image
+        // event is already the change signal; reload the asset on every media
         // event instead of trusting coarse filesystem metadata.
-        const unchanged = content.kind !== "image" && content.content === latest.diskContent;
+        const unchanged = !isMediaFileKind(content.kind) && content.content === latest.diskContent;
         if (unchanged) return;
         if (WATCHER_DEBUG) console.debug("[watcher] reload-from-disk", path);
         editorApi.reloadFromDisk(path, content);

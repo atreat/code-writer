@@ -166,7 +166,7 @@ describe("workspace IPC wrappers", () => {
     expect(result).toBe("/selected/folder");
   });
 
-  test("pickFile offers the supported image formats", async () => {
+  test("pickFile offers supported image, audio, and video formats", async () => {
     const { open } = await import("@tauri-apps/plugin-dialog");
     vi.mocked(open).mockResolvedValue("/selected/cover.png");
 
@@ -178,6 +178,14 @@ describe("workspace IPC wrappers", () => {
         expect.objectContaining({
           name: "Images",
           extensions: expect.arrayContaining(["png", "jpg", "webp", "svg"]),
+        }),
+        expect.objectContaining({
+          name: "Audio",
+          extensions: expect.arrayContaining(["mp3", "m4a", "wav", "flac"]),
+        }),
+        expect.objectContaining({
+          name: "Video",
+          extensions: expect.arrayContaining(["mp4", "mov", "webm"]),
         }),
       ]),
     );

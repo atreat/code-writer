@@ -140,6 +140,8 @@ mod tests {
             "f.RS",
             "g.PNG",
             "h.webp",
+            "i.MP3",
+            "j.MOV",
         ] {
             let path = dir.path().join(name);
             fs::write(&path, "").unwrap();

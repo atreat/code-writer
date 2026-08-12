@@ -10,7 +10,7 @@ import type {
   WriteResult,
   WorkspaceInfo,
 } from "@/types/fs";
-import { IMAGE_FILE_EXTENSIONS } from "@/types/fs";
+import { AUDIO_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS, VIDEO_FILE_EXTENSIONS } from "@/types/fs";
 
 // Filesystem commands
 export function readDirectory(path: string): Promise<DirEntry[]> {
@@ -169,6 +169,14 @@ export async function pickFile(): Promise<string | null> {
       {
         name: "Images",
         extensions: [...IMAGE_FILE_EXTENSIONS],
+      },
+      {
+        name: "Audio",
+        extensions: [...AUDIO_FILE_EXTENSIONS],
+      },
+      {
+        name: "Video",
+        extensions: [...VIDEO_FILE_EXTENSIONS],
       },
     ],
   });
